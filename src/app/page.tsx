@@ -18,7 +18,6 @@ export const CATEGORIES = [
   "Dairy & Breakfast",
   "Snacks & Munchies",
   "Drinks",
-  "Beverages",
   "Instant Food",
   "Personal Care",
   "Household Essentials",
