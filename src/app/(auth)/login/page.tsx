@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, User, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
@@ -80,7 +80,7 @@ export default function LoginPage() {
             flash<span className="text-amber-500">kart</span>
           </h2>
           <p className="mt-2 text-sm text-gray-600 font-medium">
-            Sign in to customer, delivery, or admin portal
+            Sign in to customer, staff, delivery, or admin portal
           </p>
         </div>
 
@@ -145,7 +145,7 @@ export default function LoginPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. rider@flashkart.com or admin"
+                  placeholder="e.g. staff@flashkart.com or admin"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 bg-white"
@@ -186,5 +186,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
