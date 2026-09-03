@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+export const dynamic = "force-dynamic";
+
+import React, { useEffect, useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -41,7 +43,7 @@ export interface AddressItem {
   isDefault: boolean;
 }
 
-export default function CustomerDashboardPage() {
+function DashboardContent() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { addItem } = useCartStore();
@@ -419,7 +421,6 @@ export default function CustomerDashboardPage() {
                         key={order._id}
                         className="gsap-order-card bg-white rounded-3xl border border-gray-200 p-5 shadow-xs space-y-4 transition-shadow hover:shadow-md"
                       >
-                        {/* Header */}
                         <div className="flex flex-wrap items-center justify-between border-b border-gray-100 pb-3 gap-2">
                           <div>
                             <span className="font-black text-gray-900 text-sm tracking-tight">
@@ -460,7 +461,6 @@ export default function CustomerDashboardPage() {
                           </div>
                         </div>
 
-                        {/* Interactive Real-Time Progress Bar */}
                         {!isDelivered && (
                           <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-100 space-y-2.5">
                             <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
@@ -504,7 +504,6 @@ export default function CustomerDashboardPage() {
                               </div>
                             </div>
 
-                            {/* Assigned Rider Info Card */}
                             {isOutForDelivery && order.assignedRiderName && (
                               <div className="mt-3 pt-3 border-t border-emerald-200/70 flex items-center justify-between">
                                 <div className="flex items-center gap-2.5">
@@ -534,7 +533,6 @@ export default function CustomerDashboardPage() {
                           </div>
                         )}
 
-                        {/* Order Items */}
                         <div className="divide-y divide-gray-50">
                           {order.items?.map((item: any, index: number) => (
                             <div key={index} className="py-2.5 flex items-center justify-between text-xs">
@@ -559,7 +557,6 @@ export default function CustomerDashboardPage() {
                           ))}
                         </div>
 
-                        {/* Order Footer */}
                         <div className="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between text-xs gap-2">
                           <div className="text-gray-500 flex items-center gap-1.5 font-medium">
                             <MapPin className="w-3.5 h-3.5 text-gray-400" />
@@ -650,7 +647,6 @@ export default function CustomerDashboardPage() {
                             </button>
                           </div>
 
-                          {/* Contact Name & Phone on Address Card */}
                           <div className="bg-gray-50 p-2 rounded-xl border border-gray-100 mb-2 space-y-1">
                             <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900">
                               <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -672,7 +668,6 @@ export default function CustomerDashboardPage() {
                   </div>
                 )}
 
-                {/* Add Address Modal with Integrated Name & Phone */}
                 {isAddressModalOpen && (
                   <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-200">
@@ -800,5 +795,19 @@ export default function CustomerDashboardPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function CustomerDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }

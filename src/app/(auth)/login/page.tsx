@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import React, { useState, useEffect, Suspense } from "react";
 import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -40,7 +42,6 @@ function LoginForm() {
         return;
       }
 
-      // Fetch fresh session to route according to role
       const session = await getSession();
       const userRole = (session?.user as any)?.role;
 
