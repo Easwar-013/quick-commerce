@@ -9,7 +9,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, User, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 
-// Skiper 56: Smooth Caret & Individual Character Spring Physics
+// Skiper 56: Smooth Caret & Character Physics
 function Skiper56SmoothInput({
   label,
   icon,
@@ -49,7 +49,6 @@ function Skiper56SmoothInput({
       onClick={() => inputRef.current?.focus()}
       className="relative w-full cursor-text group"
     >
-      {/* Outer Border & Subtle Glow */}
       <motion.div
         animate={{
           boxShadow: isFocused
@@ -70,7 +69,6 @@ function Skiper56SmoothInput({
         </span>
 
         <div ref={textContainerRef} className="relative flex-1 flex items-center h-5">
-          {/* Floating Label */}
           <motion.label
             animate={{
               y: isFocused || hasValue ? -22 : 0,
@@ -83,7 +81,6 @@ function Skiper56SmoothInput({
             {label}
           </motion.label>
 
-          {/* Hidden Actual Input */}
           <input
             ref={inputRef}
             type={type}
@@ -95,13 +92,13 @@ function Skiper56SmoothInput({
             className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-text"
           />
 
-          {/* Rendered Text with Skiper Caret and Devour Collapse */}
           <div className="relative flex items-center font-mono text-xs font-semibold text-gray-900 select-none pointer-events-none overflow-visible">
             <AnimatePresence>
-              {!isDevouring && (
+              {!isDevouring && value.length > 0 && (
                 <motion.span
-                  exit={{ y: 20, opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.3 }}
+                  initial={{ opacity: 1 }}
+                  exit={{ y: 22, opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.35, ease: "easeIn" }}
                   className="character-trail inline-block whitespace-pre"
                 >
                   {type === "password" ? "•".repeat(value.length) : value}
@@ -109,7 +106,6 @@ function Skiper56SmoothInput({
               )}
             </AnimatePresence>
 
-            {/* Smooth Spring Caret */}
             {isFocused && !isDevouring && (
               <motion.span
                 animate={{
@@ -154,11 +150,10 @@ function Skiper106DevouringButton({
     });
   };
 
-  const letters = textToDevour.slice(0, 18).split("");
+  const letters = textToDevour.slice(0, 20).split("");
 
   return (
     <div className="relative w-full">
-      {/* Devouring Vortex: Letters fly downward into the button */}
       <AnimatePresence>
         {isDevouring && (
           <div className="absolute -top-12 inset-x-0 flex justify-center items-center pointer-events-none z-30">
@@ -167,14 +162,14 @@ function Skiper106DevouringButton({
                 key={i}
                 initial={{ y: -6, opacity: 1, scale: 1 }}
                 animate={{
-                  y: [0, 18, 48],
+                  y: [0, 18, 52],
                   x: [(i - letters.length / 2) * 8, 0],
                   scale: [1, 0.7, 0],
                   opacity: [1, 0.8, 0],
                   rotate: [0, (i % 2 === 0 ? 1 : -1) * 35],
                 }}
                 transition={{
-                  duration: 0.55,
+                  duration: 0.6,
                   delay: i * 0.025,
                   ease: "easeInOut",
                 }}
@@ -199,7 +194,6 @@ function Skiper106DevouringButton({
         transition={{ duration: 0.4 }}
         className="relative overflow-hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl text-xs transition-all duration-300 shadow-md hover:shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
       >
-        {/* Cursor Sheen Glow */}
         <span
           className="pointer-events-none absolute -inset-px opacity-0 hover:opacity-100 transition-opacity duration-300"
           style={{
@@ -237,14 +231,22 @@ function LoginForm() {
   }, [searchParams]);
 
   const executeSignIn = async () => {
-    if (!username || !password) {
+    if (!username.trim() || !password) {
       setError("Please fill in both your email/username and password.");
       return;
     }
 
-    // Trigger Skiper 106 Devouring Animation
+    // Capture credentials for NextAuth authentication
+    const capturedUsername = username.trim().toLowerCase();
+    const capturedPassword = password;
+
+    // Start Devour Animation
     setIsDevouring(true);
     await new Promise((resolve) => setTimeout(resolve, 650));
+
+    // Permanently wipe the input fields so text never returns
+    setUsername("");
+    setPassword("");
     setIsDevouring(false);
 
     setLoading(true);
@@ -253,8 +255,8 @@ function LoginForm() {
 
     try {
       const res = await signIn("credentials", {
-        username: username.trim().toLowerCase(),
-        password,
+        username: capturedUsername,
+        password: capturedPassword,
         redirect: false,
       });
 
@@ -383,7 +385,7 @@ function LoginForm() {
               <Skiper106DevouringButton
                 loading={loading}
                 isDevouring={isDevouring}
-                textToDevour={username || "User"}
+                textToDevour={username || "Credentials"}
                 onDevourAndSubmit={executeSignIn}
               />
             </div>

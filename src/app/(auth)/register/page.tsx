@@ -94,10 +94,11 @@ function Skiper56SmoothInput({
 
           <div className="relative flex items-center font-mono text-xs font-semibold text-gray-900 select-none pointer-events-none overflow-visible">
             <AnimatePresence>
-              {!isDevouring && (
+              {!isDevouring && value.length > 0 && (
                 <motion.span
-                  exit={{ y: 18, opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.28 }}
+                  initial={{ opacity: 1 }}
+                  exit={{ y: 22, opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.35, ease: "easeIn" }}
                   className="character-trail inline-block whitespace-pre"
                 >
                   {type === "password" ? "•".repeat(value.length) : value}
@@ -149,7 +150,7 @@ function Skiper106DevouringButton({
     });
   };
 
-  const letters = textToDevour.slice(0, 18).split("");
+  const letters = textToDevour.slice(0, 20).split("");
 
   return (
     <div className="relative w-full">
@@ -161,14 +162,14 @@ function Skiper106DevouringButton({
                 key={i}
                 initial={{ y: -6, opacity: 1, scale: 1 }}
                 animate={{
-                  y: [0, 18, 48],
+                  y: [0, 18, 52],
                   x: [(i - letters.length / 2) * 8, 0],
                   scale: [1, 0.7, 0],
                   opacity: [1, 0.8, 0],
                   rotate: [0, (i % 2 === 0 ? 1 : -1) * 35],
                 }}
                 transition={{
-                  duration: 0.55,
+                  duration: 0.6,
                   delay: i * 0.025,
                   ease: "easeInOut",
                 }}
@@ -233,9 +234,21 @@ export default function RegisterPage() {
       return;
     }
 
-    // Trigger devouring animation
+    // Preserve the credentials for API dispatch
+    const payload = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+    };
+
+    // Run the devour animation
     setIsDevouring(true);
     await new Promise((resolve) => setTimeout(resolve, 650));
+
+    // Permanently wipe the input fields
+    setName("");
+    setEmail("");
+    setPassword("");
     setIsDevouring(false);
 
     setLoading(true);
@@ -245,7 +258,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -322,7 +335,7 @@ export default function RegisterPage() {
               <Skiper106DevouringButton
                 loading={loading}
                 isDevouring={isDevouring}
-                textToDevour={name || email || "User"}
+                textToDevour={name || email || "Details"}
                 onDevourAndSubmit={executeRegister}
               />
             </div>
