@@ -9,6 +9,12 @@ export interface IOrderItem {
   unit?: string;
 }
 
+export interface IRiderLocation {
+  lat: number;
+  lng: number;
+  updatedAt?: Date;
+}
+
 export interface IOrder extends Document {
   orderNumber: string;
   userEmail: string;
@@ -22,6 +28,7 @@ export interface IOrder extends Document {
   assignedRiderEmail?: string | null;
   assignedRiderName?: string | null;
   assignedRiderPhone?: string | null;
+  riderLocation?: IRiderLocation | null;
   packedByEmail?: string | null;
   packedByName?: string | null;
   deliveryAddress: {
@@ -62,6 +69,11 @@ const OrderSchema = new Schema<IOrder>(
     assignedRiderEmail: { type: String, lowercase: true, default: null },
     assignedRiderName: { type: String, default: null },
     assignedRiderPhone: { type: String, default: null },
+    riderLocation: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      updatedAt: { type: Date, default: null },
+    },
     packedByEmail: { type: String, lowercase: true, default: null },
     packedByName: { type: String, default: null },
     deliveryAddress: {

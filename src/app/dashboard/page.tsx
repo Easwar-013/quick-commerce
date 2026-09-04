@@ -34,6 +34,8 @@ import {
   Compass,
   Maximize2,
   ShieldCheck,
+  Home,
+  Check,
 } from "lucide-react";
 
 export interface AddressItem {
@@ -47,7 +49,7 @@ export interface AddressItem {
   isDefault: boolean;
 }
 
-// Fullscreen Real-Time Map Modal with Live Rider GPS
+// Quick-Commerce (Zepto/Blinkit style) Real-Time Tracking Radar
 function LiveOrderMapModal({
   order,
   onClose,
@@ -56,8 +58,9 @@ function LiveOrderMapModal({
   onClose: () => void;
 }) {
   const [currentOrder, setCurrentOrder] = useState(order);
+  const [simulatedProgress, setSimulatedProgress] = useState(45);
 
-  // Poll order updates continuously while modal is open
+  // Poll order updates every 2 seconds while modal is open
   useEffect(() => {
     const fetchLatest = async () => {
       try {
@@ -68,158 +71,205 @@ function LiveOrderMapModal({
           setCurrentOrder(data.data);
         }
       } catch (err) {
-        console.error("Failed to poll order coordinates:", err);
+        console.error("Failed to poll live order:", err);
       }
     };
 
-    const interval = setInterval(fetchLatest, 2500);
+    const interval = setInterval(fetchLatest, 2000);
     return () => clearInterval(interval);
   }, [order._id]);
+
+  // Smooth micro-movement along transit vector
+  useEffect(() => {
+    const transitInterval = setInterval(() => {
+      setSimulatedProgress((prev) => (prev >= 88 ? 35 : prev + 1.5));
+    }, 1800);
+    return () => clearInterval(transitInterval);
+  }, []);
 
   const isOutForDelivery = currentOrder.status === "OUT_FOR_DELIVERY";
   const hasRider = Boolean(currentOrder.assignedRiderEmail || currentOrder.assignedRiderName);
   const isPickedUp = isOutForDelivery && hasRider;
 
-  const riderName = currentOrder.assignedRiderName || "Express Partner";
+  const riderName = currentOrder.assignedRiderName || "Express Delivery Partner";
   const riderPhone = currentOrder.assignedRiderPhone || null;
   const destination = `${currentOrder.deliveryAddress?.street || ""}, ${currentOrder.deliveryAddress?.city || ""}`;
   const addressQuery = encodeURIComponent(destination);
 
-  // Live GPS Coordinates pushed from the Rider's phone
+  // Compute map center using real rider coordinates if available, otherwise city query
   const riderLat = currentOrder.riderLocation?.lat;
   const riderLng = currentOrder.riderLocation?.lng;
-
-  // Real-time Map URL centered on the Rider's coordinates
   const mapCenterQuery = riderLat && riderLng ? `${riderLat},${riderLng}` : addressQuery;
-  const mapSrc = `https://maps.google.com/maps?q=${mapCenterQuery}&z=16&output=embed`;
+  const mapSrc = `https://maps.google.com/maps?q=${mapCenterQuery}&z=15&output=embed`;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-4xl w-full h-[85vh] shadow-2xl border border-gray-200 flex flex-col overflow-hidden relative">
-        {/* Header Bar */}
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white z-20">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-9 h-9 rounded-2xl flex items-center justify-center ${
-                isPickedUp ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
-              }`}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl max-w-xl w-full h-[90vh] shadow-2xl border border-gray-200 flex flex-col overflow-hidden relative">
+        {/* Top Header */}
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-white z-20">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="p-1.5 -ml-1.5 text-gray-500 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition"
             >
-              <Compass
-                className={`w-5 h-5 ${isPickedUp ? "animate-spin text-emerald-600" : "text-amber-700"}`}
-              />
-            </div>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-black text-gray-900 text-sm">
-                  Live Dispatch Radar: {currentOrder.orderNumber}
-                </h3>
-                {isPickedUp ? (
-                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping" />
-                    Live Rider GPS
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full">
-                    Awaiting Rider Pickup
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-500 truncate max-w-sm sm:max-w-md">
-                Destination: {destination}
+              <h3 className="font-black text-gray-900 text-sm">
+                Order Tracking: {currentOrder.orderNumber}
+              </h3>
+              <p className="text-[10px] text-gray-400 font-semibold">
+                FlashKart 10-Minute Express Delivery
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-gray-700 hover:text-emerald-700 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-xl transition"
-            >
-              <Navigation className="w-3.5 h-3.5 text-emerald-600" /> Open External GPS
-            </a>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5"
+          >
+            <Navigation className="w-3.5 h-3.5" />
+            <span>Maps</span>
+          </a>
         </div>
 
-        {/* State 1: RIDER HAS NOT PICKED UP YET */}
+        {/* State 1: Awaiting Rider Pickup */}
         {!isPickedUp ? (
-          <div className="flex-1 bg-slate-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div className="flex-1 bg-gray-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
             <div className="relative">
-              <div className="w-20 h-20 bg-amber-100 rounded-3xl border-2 border-amber-300 flex items-center justify-center text-amber-700 shadow-lg">
+              <div className="w-20 h-20 bg-amber-100 rounded-3xl border-2 border-amber-300 flex items-center justify-center text-amber-700 shadow-md">
                 <Store className="w-9 h-9" />
               </div>
               <span className="animate-ping absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400" />
             </div>
 
-            <div className="max-w-sm">
+            <div className="max-w-xs">
               <h4 className="text-base font-black text-gray-900">Rider hasn't picked up yet</h4>
-              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                Your order is currently packed at the nearest dark store. Live satellite GPS tracking will automatically activate the moment a delivery partner accepts the order and picks up your package.
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                Your items are packed at the dark store. Live rider location will display on the map the moment a partner accepts and starts the trip.
               </p>
             </div>
 
-            <div className="bg-white px-4 py-2.5 rounded-2xl border border-gray-200 text-xs font-bold text-emerald-700 flex items-center gap-2 shadow-2xs">
-              <Clock className="w-4 h-4 animate-spin" />
-              <span>Status: {currentOrder.status} • Awaiting Rider Pickup</span>
+            <div className="bg-white px-4 py-2.5 rounded-2xl border border-gray-200 text-xs font-bold text-amber-800 flex items-center gap-2 shadow-2xs">
+              <Clock className="w-4 h-4 animate-spin text-amber-600" />
+              <span>Status: Packing • Dispatching in ~2 mins</span>
             </div>
           </div>
         ) : (
-          /* State 2: RIDER PICKED UP -> SHOW REAL-TIME GOOGLE MAP */
-          <div className="relative flex-1 bg-slate-100 overflow-hidden">
-            <iframe
-              title="Real Live GPS Map"
-              className="w-full h-full border-0"
-              src={mapSrc}
-              loading="lazy"
-            />
+          /* State 2: Live Tracking Canvas & Floating Markers (Zepto/Blinkit Style) */
+          <div className="relative flex-1 flex flex-col overflow-hidden">
+            {/* Map Canvas with Interactive Overlays */}
+            <div className="relative flex-1 bg-slate-100 overflow-hidden">
+              <iframe
+                title="Real Live GPS Map"
+                className="w-full h-full border-0 filter contrast-105"
+                src={mapSrc}
+                loading="lazy"
+              />
 
-            {/* Live Floating Tracking HUD */}
-            <div className="absolute inset-0 pointer-events-none p-4 sm:p-6 flex flex-col justify-between">
-              <div className="bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-gray-200 shadow-md max-w-xs self-start pointer-events-auto">
-                <div className="flex items-center justify-between text-xs font-black text-gray-900 mb-1">
-                  <span>Rider Status</span>
-                  <span className="text-emerald-600 font-bold">On the Road</span>
+              {/* Road Path & Marker Graphic Overlay */}
+              <div className="absolute inset-0 pointer-events-none">
+                {/* SVG Route Polyline overlay */}
+                <svg className="w-full h-full">
+                  <path
+                    d="M 60 70 Q 150 180 240 210 T 380 340"
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="5"
+                    strokeDasharray="8 6"
+                    className="animate-pulse opacity-85"
+                  />
+                </svg>
+
+                {/* Destination Home Pin (Top) */}
+                <div className="absolute left-[50px] top-[45px] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white shadow-xl flex items-center justify-center border-2 border-white ring-4 ring-indigo-500/20">
+                    <Home className="w-5 h-5" />
+                  </div>
+                  <span className="bg-gray-900 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm mt-1 uppercase">
+                    Your Home
+                  </span>
                 </div>
-                <p className="text-[11px] text-gray-600">
-                  {riderLat && riderLng ? (
-                    <span className="text-emerald-700 font-mono font-semibold">
-                      Live GPS: {riderLat.toFixed(4)}, {riderLng.toFixed(4)}
-                    </span>
-                  ) : (
-                    "Connecting to rider's device GPS..."
-                  )}
-                </p>
+
+                {/* Moving Rider Marker (En Route along vector) */}
+                <div
+                  style={{
+                    left: `${simulatedProgress}%`,
+                    top: `${40 + Math.sin(simulatedProgress / 10) * 12}%`,
+                  }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ease-linear flex flex-col items-center pointer-events-auto z-10"
+                >
+                  <div className="relative">
+                    <span className="animate-ping absolute -inset-2 rounded-full bg-amber-400 opacity-75" />
+                    <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white shadow-2xl flex items-center justify-center border-2 border-white ring-4 ring-purple-600/30">
+                      <Bike className="w-6 h-6 animate-pulse" />
+                    </div>
+                  </div>
+                  <span className="bg-purple-900 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md mt-1 whitespace-nowrap">
+                    {riderName}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Zepto/Blinkit Style Bottom Order Card */}
+            <div className="bg-white border-t border-gray-100 p-4 sm:p-5 rounded-t-3xl shadow-xl z-20 space-y-3.5">
+              {/* ETA Bar */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-base font-black text-gray-900 leading-tight">
+                    Your order is on the way
+                  </h4>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Delivery partner speeding to your doorstep
+                  </p>
+                </div>
+                <div className="bg-purple-700 text-white px-3.5 py-2 rounded-2xl text-center shadow-md shadow-purple-600/20">
+                  <span className="text-[10px] font-bold uppercase tracking-wider block opacity-90">
+                    Arriving in
+                  </span>
+                  <span className="text-sm font-black font-mono leading-none">~4 mins</span>
+                </div>
               </div>
 
-              {/* Rider Contact Card */}
-              <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-gray-200 shadow-xl self-center sm:self-end w-full sm:w-auto min-w-[320px] pointer-events-auto flex items-center justify-between gap-4">
+              {/* Rider Details Bar with Call Action */}
+              <div className="bg-purple-50/70 border border-purple-100 p-3 rounded-2xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center border border-amber-300">
-                    <Bike className="w-5 h-5 text-amber-700" />
+                  <div className="w-10 h-10 rounded-2xl bg-purple-200/80 text-purple-900 font-black text-sm flex items-center justify-center border border-purple-300">
+                    <Bike className="w-5 h-5 text-purple-700" />
                   </div>
                   <div>
-                    <p className="text-xs font-black text-gray-900 leading-tight">{riderName}</p>
-                    <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" /> Delivery Partner In Transit
-                    </p>
+                    <p className="text-xs font-black text-gray-900">{riderName}</p>
+                    <p className="text-[10px] font-semibold text-purple-700">Delivery Partner</p>
                   </div>
                 </div>
 
-                {riderPhone && (
+                {riderPhone ? (
                   <a
                     href={`tel:${riderPhone}`}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+                    className="w-9 h-9 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-md transition active:scale-95 cursor-pointer"
+                    title="Call Rider"
                   >
-                    <Phone className="w-3.5 h-3.5" /> Call Rider
+                    <Phone className="w-4 h-4" />
                   </a>
+                ) : (
+                  <span className="text-[10px] font-bold text-purple-600 bg-white px-2 py-1 rounded-xl border border-purple-200">
+                    On Trip
+                  </span>
                 )}
+              </div>
+
+              {/* Items Summary & Destination Address */}
+              <div className="text-xs text-gray-600 pt-1 space-y-1">
+                <p className="font-semibold text-gray-900 truncate">
+                  Delivering to: <span className="font-normal text-gray-600">{destination}</span>
+                </p>
+                <p className="text-[11px] text-gray-400">
+                  {currentOrder.items?.length || 0} items • Total Paid:{" "}
+                  <strong className="text-gray-900">{formatPrice(currentOrder.totalAmount)}</strong>
+                </p>
               </div>
             </div>
           </div>
