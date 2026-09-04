@@ -17,6 +17,7 @@ import {
   PackageCheck,
   Navigation,
   User,
+  Radio,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export default function DeliveryAppPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [gpsActive, setGpsActive] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const activeOrdersRef = useRef<HTMLDivElement>(null);
@@ -65,6 +67,59 @@ export default function DeliveryAppPage() {
     }
   }, [status, session, router]);
 
+  const myActiveOrders = orders.filter(
+    (o) => o.status === "OUT_FOR_DELIVERY" && o.assignedRiderEmail === riderEmail
+  );
+
+  // Broadcast Real-Time GPS from Rider Device
+  useEffect(() => {
+    if (myActiveOrders.length === 0) {
+      setGpsActive(false);
+      return;
+    }
+
+    const activeOrderId = myActiveOrders[0]._id;
+
+    if (!("geolocation" in navigator)) {
+      console.warn("Geolocation not supported by this browser.");
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (position) => {
+        setGpsActive(true);
+        try {
+          await fetch(`/api/orders/${activeOrderId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              riderLocation: {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              },
+            }),
+          });
+        } catch (err) {
+          console.error("Failed to transmit GPS:", err);
+        }
+      },
+      (error) => {
+        console.warn("GPS tracking error:", error.message);
+        setGpsActive(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 4000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      setGpsActive(false);
+    };
+  }, [myActiveOrders.length, myActiveOrders[0]?._id]);
+
   useGSAP(
     () => {
       gsap.from(".skiper-header", {
@@ -94,6 +149,23 @@ export default function DeliveryAppPage() {
     gsap.fromTo(e.currentTarget, { scale: 0.95 }, { scale: 1, duration: 0.25, ease: "back.out(2)" });
     setUpdatingId(orderId);
     try {
+      let initialLat: number | undefined;
+      let initialLng: number | undefined;
+
+      if ("geolocation" in navigator) {
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              initialLat = pos.coords.latitude;
+              initialLng = pos.coords.longitude;
+              resolve();
+            },
+            () => resolve(),
+            { timeout: 4000 }
+          );
+        });
+      }
+
       const res = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -102,6 +174,7 @@ export default function DeliveryAppPage() {
           assignedRiderEmail: riderEmail,
           assignedRiderName: riderName,
           assignedRiderPhone: riderPhone,
+          ...(initialLat && initialLng ? { riderLocation: { lat: initialLat, lng: initialLng } } : {}),
         }),
       });
       const data = await res.json();
@@ -143,17 +216,12 @@ export default function DeliveryAppPage() {
     (o) => o.status === "PACKING" && (!o.assignedRiderEmail || o.assignedRiderEmail === "")
   );
 
-  const myActiveOrders = orders.filter(
-    (o) => o.status === "OUT_FOR_DELIVERY" && o.assignedRiderEmail === riderEmail
-  );
-
   const myCompletedOrders = orders.filter(
     (o) => o.status === "DELIVERED" && o.assignedRiderEmail === riderEmail
   );
 
   return (
     <div ref={containerRef} className="min-h-screen bg-gray-100 pb-16">
-      {/* Header */}
       <header className="skiper-header bg-white border-b border-gray-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -164,9 +232,16 @@ export default function DeliveryAppPage() {
               <span className="font-black text-gray-900 text-sm tracking-tight block">
                 FlashKart Rider App
               </span>
-              <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block">
-                Partner: {riderName}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block">
+                  Partner: {riderName}
+                </span>
+                {gpsActive && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    <Radio className="w-2.5 h-2.5 text-emerald-600 animate-pulse" /> Live GPS
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -191,7 +266,7 @@ export default function DeliveryAppPage() {
       </header>
 
       <main ref={activeOrdersRef} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* SECTION 1: MY ACTIVE TRIP */}
+        {/* Active Trip */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
@@ -238,11 +313,9 @@ export default function DeliveryAppPage() {
                       </span>
                     </div>
 
-                    {/* Customer Info Card with Precision Alignments */}
                     <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-2.5 text-xs">
-                          {/* Symmetrical Inline Badges */}
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="inline-flex items-center gap-1.5 font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs">
                               <User className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
@@ -292,7 +365,6 @@ export default function DeliveryAppPage() {
                       </div>
                     </div>
 
-                    {/* Contents */}
                     <div className="space-y-1">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
                         Package Contents ({order.items?.length || 0} items)
@@ -309,7 +381,6 @@ export default function DeliveryAppPage() {
                       </div>
                     </div>
 
-                    {/* Deliver Action Button */}
                     <button
                       onClick={(e) => handleMarkDelivered(order._id, e)}
                       disabled={updatingId === order._id}
@@ -329,7 +400,7 @@ export default function DeliveryAppPage() {
           )}
         </div>
 
-        {/* SECTION 2: AVAILABLE FOR PICKUP */}
+        {/* Pickup Queue */}
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
@@ -372,11 +443,11 @@ export default function DeliveryAppPage() {
                     <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-100 text-xs space-y-2">
                       <div className="flex flex-wrap items-center gap-2 font-bold text-gray-900">
                         <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200">
-                          <User className="w-3 h-3 text-emerald-600 shrink-0" /> {customerDisplayName}
+                          <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {customerDisplayName}
                         </span>
                         {customerPhoneNum && (
                           <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200 text-gray-700">
-                            <Phone className="w-3 h-3 text-emerald-600 shrink-0" /> {customerPhoneNum}
+                            <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {customerPhoneNum}
                           </span>
                         )}
                       </div>
@@ -408,7 +479,7 @@ export default function DeliveryAppPage() {
           )}
         </div>
 
-        {/* SECTION 3: THIS RIDER'S FULFILLED DELIVERIES */}
+        {/* Completed Deliveries */}
         {myCompletedOrders.length > 0 && (
           <div className="space-y-3 pt-4 border-t border-gray-200">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">

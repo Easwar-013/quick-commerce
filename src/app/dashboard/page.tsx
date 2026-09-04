@@ -16,7 +16,6 @@ import {
   MapPin,
   CheckCircle2,
   Bike,
-  Box,
   ChevronRight,
   Plus,
   Trash2,
@@ -25,11 +24,16 @@ import {
   X,
   RotateCcw,
   Heart,
-  Home,
   Clock,
   Sparkles,
   Phone,
   UserCheck,
+  Store,
+  Navigation,
+  Smartphone,
+  Compass,
+  Maximize2,
+  ShieldCheck,
 } from "lucide-react";
 
 export interface AddressItem {
@@ -41,6 +45,188 @@ export interface AddressItem {
   city: string;
   pincode: string;
   isDefault: boolean;
+}
+
+// Fullscreen Real-Time Map Modal with Live Rider GPS
+function LiveOrderMapModal({
+  order,
+  onClose,
+}: {
+  order: any;
+  onClose: () => void;
+}) {
+  const [currentOrder, setCurrentOrder] = useState(order);
+
+  // Poll order updates continuously while modal is open
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        const res = await fetch(`/api/orders/${order._id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.data) {
+          setCurrentOrder(data.data);
+        }
+      } catch (err) {
+        console.error("Failed to poll order coordinates:", err);
+      }
+    };
+
+    const interval = setInterval(fetchLatest, 2500);
+    return () => clearInterval(interval);
+  }, [order._id]);
+
+  const isOutForDelivery = currentOrder.status === "OUT_FOR_DELIVERY";
+  const hasRider = Boolean(currentOrder.assignedRiderEmail || currentOrder.assignedRiderName);
+  const isPickedUp = isOutForDelivery && hasRider;
+
+  const riderName = currentOrder.assignedRiderName || "Express Partner";
+  const riderPhone = currentOrder.assignedRiderPhone || null;
+  const destination = `${currentOrder.deliveryAddress?.street || ""}, ${currentOrder.deliveryAddress?.city || ""}`;
+  const addressQuery = encodeURIComponent(destination);
+
+  // Live GPS Coordinates pushed from the Rider's phone
+  const riderLat = currentOrder.riderLocation?.lat;
+  const riderLng = currentOrder.riderLocation?.lng;
+
+  // Real-time Map URL centered on the Rider's coordinates
+  const mapCenterQuery = riderLat && riderLng ? `${riderLat},${riderLng}` : addressQuery;
+  const mapSrc = `https://maps.google.com/maps?q=${mapCenterQuery}&z=16&output=embed`;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl max-w-4xl w-full h-[85vh] shadow-2xl border border-gray-200 flex flex-col overflow-hidden relative">
+        {/* Header Bar */}
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white z-20">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-9 h-9 rounded-2xl flex items-center justify-center ${
+                isPickedUp ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
+              }`}
+            >
+              <Compass
+                className={`w-5 h-5 ${isPickedUp ? "animate-spin text-emerald-600" : "text-amber-700"}`}
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-gray-900 text-sm">
+                  Live Dispatch Radar: {currentOrder.orderNumber}
+                </h3>
+                {isPickedUp ? (
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping" />
+                    Live Rider GPS
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full">
+                    Awaiting Rider Pickup
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-500 truncate max-w-sm sm:max-w-md">
+                Destination: {destination}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-gray-700 hover:text-emerald-700 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-xl transition"
+            >
+              <Navigation className="w-3.5 h-3.5 text-emerald-600" /> Open External GPS
+            </a>
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* State 1: RIDER HAS NOT PICKED UP YET */}
+        {!isPickedUp ? (
+          <div className="flex-1 bg-slate-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
+            <div className="relative">
+              <div className="w-20 h-20 bg-amber-100 rounded-3xl border-2 border-amber-300 flex items-center justify-center text-amber-700 shadow-lg">
+                <Store className="w-9 h-9" />
+              </div>
+              <span className="animate-ping absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400" />
+            </div>
+
+            <div className="max-w-sm">
+              <h4 className="text-base font-black text-gray-900">Rider hasn't picked up yet</h4>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                Your order is currently packed at the nearest dark store. Live satellite GPS tracking will automatically activate the moment a delivery partner accepts the order and picks up your package.
+              </p>
+            </div>
+
+            <div className="bg-white px-4 py-2.5 rounded-2xl border border-gray-200 text-xs font-bold text-emerald-700 flex items-center gap-2 shadow-2xs">
+              <Clock className="w-4 h-4 animate-spin" />
+              <span>Status: {currentOrder.status} • Awaiting Rider Pickup</span>
+            </div>
+          </div>
+        ) : (
+          /* State 2: RIDER PICKED UP -> SHOW REAL-TIME GOOGLE MAP */
+          <div className="relative flex-1 bg-slate-100 overflow-hidden">
+            <iframe
+              title="Real Live GPS Map"
+              className="w-full h-full border-0"
+              src={mapSrc}
+              loading="lazy"
+            />
+
+            {/* Live Floating Tracking HUD */}
+            <div className="absolute inset-0 pointer-events-none p-4 sm:p-6 flex flex-col justify-between">
+              <div className="bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-gray-200 shadow-md max-w-xs self-start pointer-events-auto">
+                <div className="flex items-center justify-between text-xs font-black text-gray-900 mb-1">
+                  <span>Rider Status</span>
+                  <span className="text-emerald-600 font-bold">On the Road</span>
+                </div>
+                <p className="text-[11px] text-gray-600">
+                  {riderLat && riderLng ? (
+                    <span className="text-emerald-700 font-mono font-semibold">
+                      Live GPS: {riderLat.toFixed(4)}, {riderLng.toFixed(4)}
+                    </span>
+                  ) : (
+                    "Connecting to rider's device GPS..."
+                  )}
+                </p>
+              </div>
+
+              {/* Rider Contact Card */}
+              <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-gray-200 shadow-xl self-center sm:self-end w-full sm:w-auto min-w-[320px] pointer-events-auto flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center border border-amber-300">
+                    <Bike className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-gray-900 leading-tight">{riderName}</p>
+                    <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" /> Delivery Partner In Transit
+                    </p>
+                  </div>
+                </div>
+
+                {riderPhone && (
+                  <a
+                    href={`tel:${riderPhone}`}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+                  >
+                    <Phone className="w-3.5 h-3.5" /> Call Rider
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function DashboardContent() {
@@ -56,6 +242,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
+  const [trackingOrder, setTrackingOrder] = useState<any | null>(null);
 
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -249,37 +436,6 @@ function DashboardContent() {
     }
   };
 
-  const getProgressState = (status: string) => {
-    switch (status) {
-      case "CONFIRMED":
-        return {
-          stepIndex: 1,
-          label: "Order Confirmed & Packing",
-          width: "15%",
-        };
-      case "PACKING":
-        return {
-          stepIndex: 1,
-          label: "Packed at Store & Awaiting Rider",
-          width: "50%",
-        };
-      case "OUT_FOR_DELIVERY":
-        return {
-          stepIndex: 2,
-          label: "Rider Out on Trip",
-          width: "82%",
-        };
-      case "DELIVERED":
-        return {
-          stepIndex: 3,
-          label: "Order Delivered",
-          width: "100%",
-        };
-      default:
-        return { stepIndex: 0, label: "Processing Order", width: "5%" };
-    }
-  };
-
   return (
     <div ref={containerRef} className="min-h-screen bg-gray-50 pb-24">
       <DesktopHeader />
@@ -397,8 +553,6 @@ function DashboardContent() {
                 ) : (
                   orders.map((order) => {
                     const isDelivered = order.status === "DELIVERED";
-                    const progress = getProgressState(order.status);
-                    const isOutForDelivery = order.status === "OUT_FOR_DELIVERY";
 
                     return (
                       <div
@@ -445,109 +599,38 @@ function DashboardContent() {
                           </div>
                         </div>
 
-                        {/* Synchronized Progress Tracker */}
+                        {/* Interactive Track Order Banner with GPS Trigger Button */}
                         {!isDelivered && (
-                          <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/90 space-y-3">
-                            <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
-                              <span className="flex items-center gap-2">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
-                                </span>
-                                {progress.label}
-                              </span>
-                              <span className="text-[11px] font-mono text-emerald-700 font-bold">
-                                {progress.width}
-                              </span>
-                            </div>
-
-                            <div className="relative w-full bg-emerald-100/70 h-2 rounded-full overflow-hidden">
-                              <div
-                                style={{ width: progress.width }}
-                                className="bg-linear-to-r from-emerald-500 via-emerald-600 to-teal-500 h-full rounded-full transition-all duration-700 ease-out shadow-xs"
-                              />
-                            </div>
-
-                            <div className="grid grid-cols-3 pt-1 text-[11px] font-bold select-none">
-                              <div
-                                className={`flex items-center gap-1.5 transition-colors duration-300 ${
-                                  progress.stepIndex >= 1 ? "text-emerald-800" : "text-gray-400"
-                                }`}
-                              >
-                                <div
-                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
-                                    progress.stepIndex >= 1
-                                      ? "bg-emerald-600 text-white"
-                                      : "bg-gray-200 text-gray-500"
-                                  }`}
-                                >
-                                  1
-                                </div>
-                                <span>Packing</span>
+                          <div className="bg-linear-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
+                                <Bike className="w-5 h-5 animate-pulse" />
                               </div>
-
-                              <div
-                                className={`flex items-center justify-center gap-1.5 transition-colors duration-300 ${
-                                  progress.stepIndex >= 2 ? "text-emerald-800" : "text-gray-400"
-                                }`}
-                              >
-                                <div
-                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
-                                    progress.stepIndex >= 2
-                                      ? "bg-emerald-600 text-white"
-                                      : "bg-gray-200 text-gray-500"
-                                  }`}
-                                >
-                                  2
-                                </div>
-                                <span>On the Way</span>
-                              </div>
-
-                              <div
-                                className={`flex items-center justify-end gap-1.5 transition-colors duration-300 ${
-                                  progress.stepIndex >= 3 ? "text-emerald-800" : "text-gray-400"
-                                }`}
-                              >
-                                <div
-                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
-                                    progress.stepIndex >= 3
-                                      ? "bg-emerald-600 text-white"
-                                      : "bg-gray-200 text-gray-500"
-                                  }`}
-                                >
-                                  3
-                                </div>
-                                <span>Doorstep</span>
+                              <div>
+                                <h4 className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                                  Delivery Partner in Transit
+                                  <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
+                                  </span>
+                                </h4>
+                                <p className="text-[11px] text-gray-600 font-medium mt-0.5">
+                                  {order.assignedRiderName
+                                    ? `${order.assignedRiderName} is heading towards your location.`
+                                    : "Dark store is packing. Awaiting rider assignment."}
+                                </p>
                               </div>
                             </div>
 
-                            {/* Assigned Rider Info Card */}
-                            {isOutForDelivery && order.assignedRiderName && (
-                              <div className="mt-3 pt-3 border-t border-emerald-200/60 flex items-center justify-between">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center border border-amber-300 shrink-0">
-                                    <Bike className="w-4 h-4 text-amber-700" />
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-bold text-gray-900 leading-tight">
-                                      {order.assignedRiderName}
-                                    </p>
-                                    <p className="text-[10px] font-semibold text-emerald-700">
-                                      Your Delivery Partner
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {order.assignedRiderPhone && (
-                                  <a
-                                    href={`tel:${order.assignedRiderPhone}`}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
-                                  >
-                                    <Phone className="w-3 h-3" /> Call Rider
-                                  </a>
-                                )}
-                              </div>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => setTrackingOrder(order)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-md hover:shadow-emerald-600/30 flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
+                            >
+                              <Navigation className="w-3.5 h-3.5" />
+                              <span>Track Your Order</span>
+                              <Maximize2 className="w-3 h-3 ml-1 opacity-70" />
+                            </button>
                           </div>
                         )}
 
@@ -575,16 +658,24 @@ function DashboardContent() {
                           ))}
                         </div>
 
+                        {/* Order Footer with Mobile Phone Icon */}
                         <div className="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between text-xs gap-2">
-                          <div className="text-gray-500 flex items-center gap-1.5 font-medium">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            <span>
-                              {order.deliveryAddress?.street}, {order.deliveryAddress?.city}
+                          <div className="text-gray-600 flex flex-wrap items-center gap-2 font-medium">
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>
+                                {order.deliveryAddress?.street}, {order.deliveryAddress?.city}
+                              </span>
                             </span>
+
                             {order.deliveryAddress?.phone && (
-                              <span className="text-gray-400 font-semibold">• Tel: {order.deliveryAddress.phone}</span>
+                              <span className="inline-flex items-center gap-1 text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md font-semibold font-mono">
+                                <Smartphone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>{order.deliveryAddress.phone}</span>
+                              </span>
                             )}
                           </div>
+
                           <div className="font-black text-gray-900 text-sm">
                             Total Paid: {formatPrice(order.totalAmount)}
                           </div>
@@ -668,7 +759,7 @@ function DashboardContent() {
                               <span>{addr.contactName || displayName}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-gray-600 font-semibold">
-                              <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <Smartphone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span>{addr.phone || "No phone added"}</span>
                             </div>
                           </div>
@@ -810,6 +901,14 @@ function DashboardContent() {
           </section>
         </div>
       </main>
+
+      {/* Live Map Modal */}
+      {trackingOrder && (
+        <LiveOrderMapModal
+          order={trackingOrder}
+          onClose={() => setTrackingOrder(null)}
+        />
+      )}
     </div>
   );
 }
