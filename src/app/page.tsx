@@ -93,7 +93,7 @@ export default function CustomerStorePage() {
       if (!loading && filteredProducts.length > 0) {
         gsap.fromTo(
           ".gsap-product-card",
-          { opacity: 0, y: 20, scale: 0.96 },
+          { opacity: 0, y: 18, scale: 0.96 },
           { opacity: 1, y: 0, scale: 1, duration: 0.35, stagger: 0.04, ease: "power2.out" }
         );
       }
@@ -198,7 +198,7 @@ export default function CustomerStorePage() {
         </div>
       </main>
 
-      {/* Product Detail Drawer with Ratings & Reviews */}
+      {/* Product Detail Drawer */}
       <ProductDetailsDrawer
         product={selectedProductForDrawer}
         isOpen={!!selectedProductForDrawer}

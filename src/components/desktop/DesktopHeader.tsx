@@ -3,8 +3,18 @@
 import React, { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShoppingBag, Search, ShieldAlert, User, LogOut, Heart, SlidersHorizontal, X } from "lucide-react";
+import {
+  ShoppingBag,
+  Search,
+  ShieldAlert,
+  User,
+  LogOut,
+  Heart,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/useCartStore";
 import { useWishlistStore } from "@/store/useWishlistStore";
 import { useFilter } from "@/context/FilterContext";
@@ -22,7 +32,11 @@ export default function DesktopHeader() {
   const [localSearch, setLocalSearch] = useState(searchQuery || "");
   const [showBadge, setShowBadge] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [caretOffset, setCaretOffset] = useState(0);
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const textTrailRef = useRef<HTMLSpanElement>(null);
   const badgeRef = useRef<HTMLSpanElement>(null);
   const isInitialMount = useRef(true);
   const prevCountRef = useRef<number>(0);
@@ -34,6 +48,15 @@ export default function DesktopHeader() {
   useEffect(() => {
     setLocalSearch(searchQuery);
   }, [searchQuery]);
+
+  // Dynamically compute the smooth caret offset based on text width
+  useEffect(() => {
+    if (textTrailRef.current) {
+      setCaretOffset(textTrailRef.current.offsetWidth);
+    } else {
+      setCaretOffset(0);
+    }
+  }, [localSearch]);
 
   const userEmail = session?.user?.email || null;
   const userRole = (session?.user as any)?.role || "customer";
@@ -52,7 +75,6 @@ export default function DesktopHeader() {
     .slice(0, 2)
     .toUpperCase();
 
-  // Role-based destination for the profile badge
   const profileHref =
     userRole === "staff"
       ? "/staff"
@@ -86,20 +108,16 @@ export default function DesktopHeader() {
     }, 20);
   };
 
-  // One-time popup notification upon login per account session
   useEffect(() => {
     if (!mounted || status !== "authenticated" || !userEmail) return;
 
     const userKey = `wishlist_login_notified_${userEmail}`;
     if (!sessionStorage.getItem(userKey)) {
       sessionStorage.setItem(userKey, "true");
-      if (wishlistCount > 0) {
-        triggerBadgePopup();
-      }
+      if (wishlistCount > 0) triggerBadgePopup();
     }
   }, [mounted, status, userEmail, wishlistCount]);
 
-  // Trigger only on explicit add / remove actions
   useEffect(() => {
     if (!mounted) return;
 
@@ -138,42 +156,112 @@ export default function DesktopHeader() {
   const handleClearSearch = () => {
     setLocalSearch("");
     setSearchQuery("");
+    searchInputRef.current?.focus();
   };
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <span className="text-2xl font-black tracking-tight text-emerald-600">
+        {/* Brand */}
+        <Link href="/" className="flex items-center gap-2 shrink-0 group">
+          <span className="text-2xl font-black tracking-tight text-emerald-600 transition-transform group-hover:scale-105 duration-200">
             flash<span className="text-amber-500">kart</span>
           </span>
         </Link>
 
-        {/* Global Search & Sort */}
+        {/* Skiper 56 Interactive Smooth-Caret Search & Filter Container */}
         <div className="flex-1 max-w-xl hidden md:flex items-center gap-2 relative z-20">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search for milk, drinks, snacks, fruits..."
-              value={localSearch}
-              onChange={handleSearchChange}
-              className="w-full pl-9 pr-8 py-2 bg-gray-50 hover:bg-gray-100/80 focus:bg-white border border-gray-200 rounded-xl text-xs sm:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-400"
+          <div
+            onClick={() => searchInputRef.current?.focus()}
+            className="relative flex-1 cursor-text group"
+          >
+            {/* Animated Glow Border */}
+            <motion.div
+              animate={{
+                boxShadow: isSearchFocused
+                  ? "0 0 0 2px rgba(16, 185, 129, 0.8), 0 0 20px rgba(16, 185, 129, 0.16)"
+                  : "0 0 0 1px rgba(229, 231, 235, 1)",
+              }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 rounded-2xl bg-gray-50/80 group-hover:bg-gray-100/60 transition-colors"
             />
-            {localSearch && (
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+
+            <div className="relative flex items-center px-3.5 py-2.5 z-10">
+              <Search
+                className={`w-4 h-4 mr-2.5 transition-colors duration-200 shrink-0 ${
+                  isSearchFocused ? "text-emerald-600" : "text-gray-400"
+                }`}
+              />
+
+              <div className="relative flex-1 flex items-center h-5 overflow-hidden">
+                {/* Placeholder text when empty and not typed */}
+                {!localSearch && (
+                  <span className="absolute left-0 text-xs sm:text-sm text-gray-400 select-none pointer-events-none truncate font-medium">
+                    Search for milk, drinks, snacks, fruits...
+                  </span>
+                )}
+
+                {/* Invisible Real Input */}
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={localSearch}
+                  onChange={handleSearchChange}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
+                  className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-text"
+                />
+
+                {/* Visible Rendered Text Trail */}
+                <div className="relative flex items-center font-mono text-xs sm:text-sm font-semibold text-gray-900 select-none pointer-events-none overflow-visible">
+                  <span
+                    ref={textTrailRef}
+                    className="inline-block whitespace-pre font-medium text-gray-900"
+                  >
+                    {localSearch}
+                  </span>
+
+                  {/* Skiper 56 Spring Gliding Smooth Caret */}
+                  {isSearchFocused && (
+                    <motion.span
+                      animate={{
+                        x: caretOffset,
+                        opacity: [1, 0, 1],
+                      }}
+                      transition={{
+                        x: { type: "spring", stiffness: 500, damping: 32 },
+                        opacity: { repeat: Infinity, duration: 0.85, ease: "easeInOut" },
+                      }}
+                      className="absolute left-0 w-[2.5px] h-4 bg-emerald-600 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.9)]"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Clear button */}
+              <AnimatePresence>
+                {localSearch && (
+                  <motion.button
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClearSearch();
+                    }}
+                    className="ml-2 text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200/60 transition cursor-pointer z-30"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 shrink-0">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600 pointer-events-none" />
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-2.5 rounded-2xl text-xs font-semibold text-gray-700 shrink-0">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600 pointer-events-none shrink-0" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -199,7 +287,7 @@ export default function DesktopHeader() {
             </Link>
           )}
 
-          {/* Wishlist Link (only relevant for customers) */}
+          {/* Wishlist Link */}
           {userRole === "customer" && (
             <Link
               href="/wishlist"
@@ -218,7 +306,7 @@ export default function DesktopHeader() {
             </Link>
           )}
 
-          {/* User Account / Google Avatar Profile (Points to role's portal) */}
+          {/* Profile Badge */}
           {session?.user ? (
             <div className="flex items-center gap-1.5">
               <Link
@@ -272,7 +360,7 @@ export default function DesktopHeader() {
           {userRole === "customer" && (
             <Link
               href="/cart"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl flex items-center gap-2 font-semibold text-xs transition shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl flex items-center gap-2 font-semibold text-xs transition shadow-sm active:scale-95"
             >
               <ShoppingBag className="w-4 h-4" />
               <span>{totalCount} items</span>

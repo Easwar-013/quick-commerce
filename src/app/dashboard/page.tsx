@@ -51,14 +51,12 @@ function DashboardContent() {
   const tabParam = searchParams.get("tab");
   const addAddressPrompt = searchParams.get("addAddress") === "true";
 
-  // Streamlined to Orders and Saved Addresses only
   const [activeTab, setActiveTab] = useState<"orders" | "addresses">("orders");
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
 
-  // Addresses State with Integrated Name and Mobile
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [newContactName, setNewContactName] = useState("");
@@ -71,7 +69,6 @@ function DashboardContent() {
   const containerRef = useRef<HTMLDivElement>(null);
   const ordersListRef = useRef<HTMLDivElement>(null);
 
-  // Guard non-customer roles away from customer dashboard
   useEffect(() => {
     if (status === "authenticated") {
       const role = (session?.user as any)?.role;
@@ -96,13 +93,10 @@ function DashboardContent() {
   useEffect(() => {
     if (tabParam === "addresses") {
       setActiveTab("addresses");
-      if (addAddressPrompt) {
-        setIsAddressModalOpen(true);
-      }
+      if (addAddressPrompt) setIsAddressModalOpen(true);
     }
   }, [tabParam, addAddressPrompt]);
 
-  // Pre-fill contact name from session for address modal
   useEffect(() => {
     if (session?.user?.name && !newContactName) {
       setNewContactName(session.user.name);
@@ -121,7 +115,6 @@ function DashboardContent() {
     }
   }, [displayEmail]);
 
-  // Real-time polling
   const loadOrders = async () => {
     if (!displayEmail) return;
     try {
@@ -143,39 +136,37 @@ function DashboardContent() {
     return () => clearInterval(interval);
   }, [displayEmail]);
 
-  // GSAP: Animate header & cards entrance
   useGSAP(
     () => {
-      gsap.from(".gsap-header-card", {
+      gsap.from(".skiper-fade-down", {
         opacity: 0,
-        y: -15,
+        y: -16,
+        duration: 0.5,
+        ease: "power3.out",
+      });
+      gsap.from(".skiper-sidebar", {
+        opacity: 0,
+        x: -24,
         duration: 0.45,
         ease: "power2.out",
-      });
-      gsap.from(".gsap-sidebar-panel", {
-        opacity: 0,
-        x: -20,
-        duration: 0.4,
-        ease: "power2.out",
-        delay: 0.1,
+        delay: 0.08,
       });
     },
     { scope: containerRef }
   );
 
-  // GSAP: Stagger orders when list updates
   useGSAP(
     () => {
       if (!loading && orders.length > 0) {
         gsap.fromTo(
-          ".gsap-order-card",
-          { opacity: 0, y: 18, scale: 0.98 },
+          ".skiper-card",
+          { opacity: 0, y: 16, scale: 0.98 },
           {
             opacity: 1,
             y: 0,
             scale: 1,
-            duration: 0.35,
-            stagger: 0.06,
+            duration: 0.38,
+            stagger: 0.05,
             ease: "power2.out",
           }
         );
@@ -184,11 +175,10 @@ function DashboardContent() {
     { dependencies: [activeTab, loading, orders.length], scope: ordersListRef }
   );
 
-  // 1-Click "Order Again" Handler
   const handleOrderAgain = (order: any, e: React.MouseEvent) => {
     gsap.fromTo(
       e.currentTarget,
-      { scale: 0.88 },
+      { scale: 0.9 },
       { scale: 1, duration: 0.3, ease: "back.out(2)" }
     );
 
@@ -208,10 +198,9 @@ function DashboardContent() {
     setTimeout(() => {
       setReorderingId(null);
       router.push("/cart");
-    }, 500);
+    }, 450);
   };
 
-  // Add Address with Contact Details
   const handleAddAddress = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStreet || !newCity || !newPincode || !displayEmail || !newPhone) return;
@@ -264,34 +253,30 @@ function DashboardContent() {
     switch (status) {
       case "CONFIRMED":
         return {
-          percentage: "25%",
-          step: 1,
-          label: "Order Placed & Confirmed",
-          sub: "Store staff received the ticket",
+          stepIndex: 1,
+          label: "Order Confirmed & Packing",
+          width: "15%",
         };
       case "PACKING":
         return {
-          percentage: "60%",
-          step: 2,
-          label: "Packing at Dark Store",
-          sub: "Items are packed & awaiting rider pickup",
+          stepIndex: 1,
+          label: "Packed at Store & Awaiting Rider",
+          width: "50%",
         };
       case "OUT_FOR_DELIVERY":
         return {
-          percentage: "85%",
-          step: 3,
+          stepIndex: 2,
           label: "Rider Out on Trip",
-          sub: "Heading to your doorstep in minutes",
+          width: "82%",
         };
       case "DELIVERED":
         return {
-          percentage: "100%",
-          step: 4,
-          label: "Delivered at Doorstep",
-          sub: "Package received",
+          stepIndex: 3,
+          label: "Order Delivered",
+          width: "100%",
         };
       default:
-        return { percentage: "15%", step: 1, label: "Processing", sub: "" };
+        return { stepIndex: 0, label: "Processing Order", width: "5%" };
     }
   };
 
@@ -300,16 +285,16 @@ function DashboardContent() {
       <DesktopHeader />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 mb-5">
-          <Link href="/" className="hover:text-emerald-600 flex items-center gap-1 transition">
+        <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 mb-5">
+          <Link href="/" className="hover:text-emerald-600 flex items-center gap-1 transition-colors">
             <ArrowLeft className="w-3.5 h-3.5 text-emerald-600" /> Back to Store
           </Link>
           <span>/</span>
           <span className="text-gray-900 font-bold">My Account</span>
         </div>
 
-        {/* Dynamic Profile Header */}
-        <div className="gsap-header-card bg-white rounded-3xl border border-gray-200 p-6 mb-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Profile Card */}
+        <div className="skiper-fade-down bg-white rounded-3xl border border-gray-200/90 p-6 mb-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md">
           <div className="flex items-center gap-4">
             {session?.user?.image && !imageError ? (
               <img
@@ -325,17 +310,17 @@ function DashboardContent() {
               </div>
             )}
             <div>
-              <h1 className="text-xl font-black text-gray-900 flex items-center gap-2">
+              <h1 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
                 {displayName}
               </h1>
               <p className="text-xs text-gray-500 font-medium mt-0.5">{displayEmail}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Link
               href="/wishlist"
-              className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 border border-rose-200 transition active:scale-95 cursor-pointer shadow-xs"
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 border border-rose-200 transition-all duration-200 active:scale-95 shadow-xs"
             >
               <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" /> Wishlist Shelf
             </Link>
@@ -347,14 +332,13 @@ function DashboardContent() {
 
         {/* Layout with Sticky Sidebar */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
-          {/* Sticky Sidebar with 2 Clean Tabs */}
-          <aside className="gsap-sidebar-panel md:col-span-1 space-y-2 sticky top-20 z-20">
+          <aside className="skiper-sidebar md:col-span-1 space-y-2 sticky top-20 z-20">
             <button
               onClick={() => setActiveTab("orders")}
               className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "orders"
-                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20 translate-x-1"
-                  : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25 translate-x-1"
+                  : "bg-white text-gray-700 hover:bg-gray-100/80 border border-gray-200"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -368,8 +352,8 @@ function DashboardContent() {
               onClick={() => setActiveTab("addresses")}
               className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "addresses"
-                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20 translate-x-1"
-                  : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25 translate-x-1"
+                  : "bg-white text-gray-700 hover:bg-gray-100/80 border border-gray-200"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -419,7 +403,7 @@ function DashboardContent() {
                     return (
                       <div
                         key={order._id}
-                        className="gsap-order-card bg-white rounded-3xl border border-gray-200 p-5 shadow-xs space-y-4 transition-shadow hover:shadow-md"
+                        className="skiper-card bg-white rounded-3xl border border-gray-200/90 p-5 shadow-xs space-y-4 transition-all duration-300 hover:shadow-md"
                       >
                         <div className="flex flex-wrap items-center justify-between border-b border-gray-100 pb-3 gap-2">
                           <div>
@@ -461,53 +445,87 @@ function DashboardContent() {
                           </div>
                         </div>
 
+                        {/* Synchronized Progress Tracker */}
                         {!isDelivered && (
-                          <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-100 space-y-2.5">
-                            <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping inline-block" />
+                          <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/90 space-y-3">
+                            <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
+                              <span className="flex items-center gap-2">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
+                                </span>
                                 {progress.label}
                               </span>
-                              <span className="text-[11px] text-emerald-700 font-semibold font-mono">
-                                {progress.percentage}
+                              <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                                {progress.width}
                               </span>
                             </div>
 
-                            <div className="w-full bg-emerald-200/60 h-2.5 rounded-full overflow-hidden p-0.5">
+                            <div className="relative w-full bg-emerald-100/70 h-2 rounded-full overflow-hidden">
                               <div
-                                style={{ width: progress.percentage }}
-                                className="bg-linear-to-r from-emerald-500 to-emerald-600 h-full rounded-full transition-all duration-700 ease-out shadow-xs"
+                                style={{ width: progress.width }}
+                                className="bg-linear-to-r from-emerald-500 via-emerald-600 to-teal-500 h-full rounded-full transition-all duration-700 ease-out shadow-xs"
                               />
                             </div>
 
-                            <div className="grid grid-cols-3 pt-1 text-[11px] text-gray-500 font-semibold">
+                            <div className="grid grid-cols-3 pt-1 text-[11px] font-bold select-none">
                               <div
-                                className={`flex items-center gap-1.5 ${
-                                  progress.step >= 1 ? "text-emerald-800 font-extrabold" : "text-gray-400"
+                                className={`flex items-center gap-1.5 transition-colors duration-300 ${
+                                  progress.stepIndex >= 1 ? "text-emerald-800" : "text-gray-400"
                                 }`}
                               >
-                                <Box className="w-3.5 h-3.5" /> Packing
+                                <div
+                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                                    progress.stepIndex >= 1
+                                      ? "bg-emerald-600 text-white"
+                                      : "bg-gray-200 text-gray-500"
+                                  }`}
+                                >
+                                  1
+                                </div>
+                                <span>Packing</span>
                               </div>
+
                               <div
-                                className={`flex items-center justify-center gap-1.5 ${
-                                  progress.step >= 3 ? "text-emerald-800 font-extrabold" : "text-gray-400"
+                                className={`flex items-center justify-center gap-1.5 transition-colors duration-300 ${
+                                  progress.stepIndex >= 2 ? "text-emerald-800" : "text-gray-400"
                                 }`}
                               >
-                                <Bike className="w-3.5 h-3.5" /> On the Way
+                                <div
+                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                                    progress.stepIndex >= 2
+                                      ? "bg-emerald-600 text-white"
+                                      : "bg-gray-200 text-gray-500"
+                                  }`}
+                                >
+                                  2
+                                </div>
+                                <span>On the Way</span>
                               </div>
+
                               <div
-                                className={`flex items-center justify-end gap-1.5 ${
-                                  progress.step >= 4 ? "text-emerald-800 font-extrabold" : "text-gray-400"
+                                className={`flex items-center justify-end gap-1.5 transition-colors duration-300 ${
+                                  progress.stepIndex >= 3 ? "text-emerald-800" : "text-gray-400"
                                 }`}
                               >
-                                <Home className="w-3.5 h-3.5" /> Doorstep
+                                <div
+                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                                    progress.stepIndex >= 3
+                                      ? "bg-emerald-600 text-white"
+                                      : "bg-gray-200 text-gray-500"
+                                  }`}
+                                >
+                                  3
+                                </div>
+                                <span>Doorstep</span>
                               </div>
                             </div>
 
+                            {/* Assigned Rider Info Card */}
                             {isOutForDelivery && order.assignedRiderName && (
-                              <div className="mt-3 pt-3 border-t border-emerald-200/70 flex items-center justify-between">
+                              <div className="mt-3 pt-3 border-t border-emerald-200/60 flex items-center justify-between">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center border border-amber-300">
+                                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center border border-amber-300 shrink-0">
                                     <Bike className="w-4 h-4 text-amber-700" />
                                   </div>
                                   <div>
@@ -523,7 +541,7 @@ function DashboardContent() {
                                 {order.assignedRiderPhone && (
                                   <a
                                     href={`tel:${order.assignedRiderPhone}`}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-xs transition"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
                                   >
                                     <Phone className="w-3 h-3" /> Call Rider
                                   </a>
@@ -559,12 +577,12 @@ function DashboardContent() {
 
                         <div className="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between text-xs gap-2">
                           <div className="text-gray-500 flex items-center gap-1.5 font-medium">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                             <span>
                               {order.deliveryAddress?.street}, {order.deliveryAddress?.city}
                             </span>
                             {order.deliveryAddress?.phone && (
-                              <span className="text-gray-400">• Tel: {order.deliveryAddress.phone}</span>
+                              <span className="text-gray-400 font-semibold">• Tel: {order.deliveryAddress.phone}</span>
                             )}
                           </div>
                           <div className="font-black text-gray-900 text-sm">
@@ -584,7 +602,7 @@ function DashboardContent() {
                   <div>
                     <h2 className="text-lg font-black text-gray-900">Delivery Addresses & Contacts</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Riders will use the contact name and mobile number on your selected address
+                      Riders use the assigned phone number to contact you on delivery.
                     </p>
                   </div>
                   <button
@@ -599,12 +617,9 @@ function DashboardContent() {
                   <div className="bg-white p-12 rounded-3xl border border-gray-200 text-center shadow-xs">
                     <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                     <p className="text-gray-800 font-bold text-sm">No saved delivery addresses</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Add your address with your phone number for rapid 10-minute dispatch.
-                    </p>
                     <button
                       onClick={() => setIsAddressModalOpen(true)}
-                      className="inline-block mt-4 bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl cursor-pointer"
+                      className="inline-block mt-4 bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl cursor-pointer shadow-xs"
                     >
                       Add Address Now
                     </button>
@@ -614,7 +629,7 @@ function DashboardContent() {
                     {addresses.map((addr) => (
                       <div
                         key={addr.id}
-                        className={`bg-white p-4 rounded-2xl border relative shadow-xs flex flex-col justify-between transition-all ${
+                        className={`bg-white p-4 rounded-2xl border relative shadow-xs flex flex-col justify-between transition-all duration-300 hover:shadow-md ${
                           addr.isDefault
                             ? "border-emerald-500 ring-2 ring-emerald-500/20"
                             : "border-gray-200 hover:border-gray-300"
@@ -647,13 +662,13 @@ function DashboardContent() {
                             </button>
                           </div>
 
-                          <div className="bg-gray-50 p-2 rounded-xl border border-gray-100 mb-2 space-y-1">
+                          <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 mb-2 space-y-1">
                             <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900">
-                              <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span>{addr.contactName || displayName}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-gray-600 font-semibold">
-                              <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                              <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span>{addr.phone || "No phone added"}</span>
                             </div>
                           </div>
@@ -668,9 +683,10 @@ function DashboardContent() {
                   </div>
                 )}
 
+                {/* Add Address Modal */}
                 {isAddressModalOpen && (
-                  <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-200">
+                  <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
                       <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
                         <h3 className="font-bold text-gray-900 text-sm">Add Delivery Location</h3>
                         <button
@@ -693,7 +709,7 @@ function DashboardContent() {
                               placeholder="Full Name"
                               value={newContactName}
                               onChange={(e) => setNewContactName(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
                             />
                           </div>
 
@@ -707,7 +723,7 @@ function DashboardContent() {
                               placeholder="10-digit number"
                               value={newPhone}
                               onChange={(e) => setNewPhone(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
                             />
                           </div>
                         </div>
@@ -729,15 +745,15 @@ function DashboardContent() {
 
                         <div>
                           <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                            Street / Door / Flat No
+                            Street / Flat No
                           </label>
                           <input
                             type="text"
                             required
-                            placeholder="e.g. Flat 402, Green Meadows, 12th Main Road"
+                            placeholder="e.g. Flat 402, Green Meadows"
                             value={newStreet}
                             onChange={(e) => setNewStreet(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
                           />
                         </div>
 
@@ -752,7 +768,7 @@ function DashboardContent() {
                               placeholder="City"
                               value={newCity}
                               onChange={(e) => setNewCity(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
                             />
                           </div>
                           <div>
@@ -765,7 +781,7 @@ function DashboardContent() {
                               placeholder="6-digit pincode"
                               value={newPincode}
                               onChange={(e) => setNewPincode(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
                             />
                           </div>
                         </div>
@@ -780,7 +796,7 @@ function DashboardContent() {
                           </button>
                           <button
                             type="submit"
-                            className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
+                            className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs transition-all active:scale-95"
                           >
                             Save Address
                           </button>

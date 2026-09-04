@@ -17,7 +17,6 @@ import {
   PackageCheck,
   Navigation,
   User,
-  Sparkles,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -66,26 +65,24 @@ export default function DeliveryAppPage() {
     }
   }, [status, session, router]);
 
-  // GSAP Header entrance
   useGSAP(
     () => {
-      gsap.from(".gsap-rider-header", {
-        y: -20,
+      gsap.from(".skiper-header", {
+        y: -18,
         opacity: 0,
         duration: 0.45,
-        ease: "power2.out",
+        ease: "power3.out",
       });
     },
     { scope: containerRef }
   );
 
-  // GSAP card animations
   useGSAP(
     () => {
       if (orders.length > 0) {
         gsap.fromTo(
-          ".gsap-rider-card",
-          { opacity: 0, y: 15, scale: 0.98 },
+          ".skiper-rider-card",
+          { opacity: 0, y: 14, scale: 0.98 },
           { opacity: 1, y: 0, scale: 1, duration: 0.35, stagger: 0.05, ease: "power2.out" }
         );
       }
@@ -157,10 +154,10 @@ export default function DeliveryAppPage() {
   return (
     <div ref={containerRef} className="min-h-screen bg-gray-100 pb-16">
       {/* Header */}
-      <header className="gsap-rider-header bg-white border-b border-gray-200 sticky top-0 z-30 shadow-xs">
+      <header className="skiper-header bg-white border-b border-gray-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-amber-100 text-amber-900 rounded-2xl shadow-xs">
+            <div className="p-2 bg-amber-100 text-amber-900 rounded-2xl shadow-xs shrink-0">
               <Bike className="w-5 h-5 text-amber-700" />
             </div>
             <div>
@@ -227,7 +224,7 @@ export default function DeliveryAppPage() {
                 return (
                   <div
                     key={order._id}
-                    className="gsap-rider-card bg-white rounded-3xl border-2 border-emerald-500 shadow-md p-5 space-y-4 ring-4 ring-emerald-500/10"
+                    className="skiper-rider-card bg-white rounded-3xl border-2 border-emerald-500 shadow-md p-5 space-y-4 ring-4 ring-emerald-500/10 transition-all duration-300"
                   >
                     <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                       <div>
@@ -241,29 +238,32 @@ export default function DeliveryAppPage() {
                       </span>
                     </div>
 
-                    {/* Customer Info, Address & Navigation */}
-                    <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200 space-y-3">
+                    {/* Customer Info Card with Precision Alignments */}
+                    <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-2 text-xs">
-                          {/* Customer Name & Mobile */}
-                          <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1.5 font-bold text-gray-900 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
-                              <User className="w-3.5 h-3.5 text-emerald-600" /> {customerDisplayName}
+                        <div className="space-y-2.5 text-xs">
+                          {/* Symmetrical Inline Badges */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs">
+                              <User className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                              <span>{customerDisplayName}</span>
                             </span>
+
                             {customerPhoneNum && (
                               <a
                                 href={`tel:${customerPhoneNum}`}
-                                className="inline-flex items-center gap-1 text-emerald-800 font-bold bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded-md transition"
+                                className="inline-flex items-center gap-1.5 text-emerald-800 font-bold bg-emerald-100/80 hover:bg-emerald-200 px-2.5 py-1 rounded-lg border border-emerald-300/70 transition-colors shadow-2xs cursor-pointer active:scale-95"
                               >
-                                <Phone className="w-3 h-3 text-emerald-700" /> {customerPhoneNum}
+                                <Phone className="w-3.5 h-3.5 text-emerald-700 shrink-0 stroke-[2.5]" />
+                                <span>{customerPhoneNum}</span>
                               </a>
                             )}
                           </div>
 
-                          <div className="flex items-start gap-2">
+                          <div className="flex items-start gap-2 pt-0.5">
                             <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                             <div>
-                              <span className="font-black text-gray-900 uppercase tracking-wider text-[10px] bg-white px-1.5 py-0.2 rounded border border-gray-200 inline-block mb-0.5">
+                              <span className="font-black text-gray-900 uppercase tracking-wider text-[10px] bg-white px-1.5 py-0.5 rounded border border-gray-200 inline-block mb-1">
                                 {order.deliveryAddress?.type || "HOME"}
                               </span>
                               <p className="text-gray-900 font-bold leading-relaxed">
@@ -277,22 +277,22 @@ export default function DeliveryAppPage() {
                           href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs transition"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs transition-all active:scale-95"
                         >
                           <Navigation className="w-3.5 h-3.5" /> Navigate
                         </a>
                       </div>
 
-                      <div className="pt-2 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="pt-2.5 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
                         <span className="text-gray-600 font-medium">{order.userEmail}</span>
-                        <div className="flex items-center gap-1 font-bold text-gray-900">
+                        <div className="flex items-center gap-1.5 font-bold text-gray-900">
                           <span className="text-gray-500 font-normal text-[11px]">Collect Cash:</span>
                           <span className="text-emerald-700 text-sm font-black">{formatPrice(order.totalAmount)}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Order Package Contents */}
+                    {/* Contents */}
                     <div className="space-y-1">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
                         Package Contents ({order.items?.length || 0} items)
@@ -309,11 +309,11 @@ export default function DeliveryAppPage() {
                       </div>
                     </div>
 
-                    {/* Deliver Action */}
+                    {/* Deliver Action Button */}
                     <button
                       onClick={(e) => handleMarkDelivered(order._id, e)}
                       disabled={updatingId === order._id}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl text-xs transition shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
                     >
                       {updatingId === order._id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -329,7 +329,7 @@ export default function DeliveryAppPage() {
           )}
         </div>
 
-        {/* SECTION 2: UNCLAIMED ORDERS AVAILABLE FOR PICKUP */}
+        {/* SECTION 2: AVAILABLE FOR PICKUP */}
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
@@ -340,7 +340,7 @@ export default function DeliveryAppPage() {
           </div>
 
           {availableOrders.length === 0 ? (
-            <div className="bg-white p-8 rounded-3xl border border-gray-200 text-center">
+            <div className="bg-white p-8 rounded-3xl border border-gray-200 text-center shadow-xs">
               <PackageCheck className="w-10 h-10 text-gray-300 mx-auto mb-2" />
               <p className="text-xs text-gray-400 font-medium">No new packed orders waiting at the dark store.</p>
             </div>
@@ -355,7 +355,7 @@ export default function DeliveryAppPage() {
                 return (
                   <div
                     key={order._id}
-                    className="gsap-rider-card bg-white rounded-3xl border border-gray-200 p-5 shadow-xs space-y-4"
+                    className="skiper-rider-card bg-white rounded-3xl border border-gray-200 p-5 shadow-xs space-y-4 transition-all duration-300"
                   >
                     <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                       <div>
@@ -369,10 +369,16 @@ export default function DeliveryAppPage() {
                       </span>
                     </div>
 
-                    <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-100 text-xs space-y-1.5">
-                      <div className="flex items-center gap-2 font-bold text-gray-900">
-                        <span>Customer: {customerDisplayName}</span>
-                        {customerPhoneNum && <span className="text-gray-500">• {customerPhoneNum}</span>}
+                    <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-100 text-xs space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 font-bold text-gray-900">
+                        <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200">
+                          <User className="w-3 h-3 text-emerald-600 shrink-0" /> {customerDisplayName}
+                        </span>
+                        {customerPhoneNum && (
+                          <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200 text-gray-700">
+                            <Phone className="w-3 h-3 text-emerald-600 shrink-0" /> {customerPhoneNum}
+                          </span>
+                        )}
                       </div>
                       <p className="text-gray-700 font-medium">
                         Destination: <strong>{order.deliveryAddress?.street}, {order.deliveryAddress?.city}</strong>
@@ -386,7 +392,7 @@ export default function DeliveryAppPage() {
                     <button
                       onClick={(e) => handleClaimAndStartTrip(order._id, e)}
                       disabled={updatingId === order._id}
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-2xl text-xs transition shadow-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-2xl text-xs transition-all shadow-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
                     >
                       {updatingId === order._id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

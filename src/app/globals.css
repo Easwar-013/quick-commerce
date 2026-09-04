@@ -24,3 +24,29 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Skiper UI / AnimMasterLib Input Caret & Glow Effects */
+input:focus,
+select:focus,
+textarea:focus {
+  caret-color: #059669;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
+}
+
+/* Linear Shimmer on Loading Progress Bars */
+@keyframes skiperShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-skiper-shimmer {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 50%, #059669 100%);
+  background-size: 200% 100%;
+  animation: skiperShimmer 2.2s infinite linear;
+}
