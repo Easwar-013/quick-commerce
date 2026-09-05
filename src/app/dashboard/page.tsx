@@ -46,16 +46,18 @@ export interface AddressItem {
   isDefault: boolean;
 }
 
-// In-app Real-time Geospatial Map Canvas with Road-Snapping Routing
+// In-app Real-time Geospatial Map Canvas with Road-Snapping Routing & Custom Biker Marker
 function RealtimeTrackingCanvas({
   riderLocation,
   destLat,
   destLng,
+  riderName,
   onRouteStats,
 }: {
   riderLocation: { lat: number; lng: number };
   destLat: number;
   destLng: number;
+  riderName?: string;
   onRouteStats?: (stats: { distanceKm: string; durationMins: string }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,13 +81,13 @@ function RealtimeTrackingCanvas({
         zoomControl: false,
       });
 
-      // Free OpenStreetMap Tiles (No API key, zero watermarks)
+      // Free OpenStreetMap Tiles (Zero watermark, completely free)
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(map);
 
-      // Red Destination Home Pin
+      // 1. Red Destination Home Pin
       const destIcon = L.divIcon({
         className: "dest-pin",
         html: `
@@ -103,19 +105,34 @@ function RealtimeTrackingCanvas({
       });
       L.marker([destLat, destLng], { icon: destIcon }).addTo(map);
 
-      // Blue Pulsing Live Rider Marker
-      const riderIcon = L.divIcon({
-        className: "rider-pin",
+      // 2. Custom Quick-Commerce Delivery Rider Bike Pin
+      const bikerIcon = L.divIcon({
+        className: "custom-biker-icon",
         html: `
-          <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-            <div style="position: absolute; width: 36px; height: 36px; background: rgba(2, 132, 199, 0.4); border-radius: 50%; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <div style="width: 20px; height: 20px; background: #0284c7; border-radius: 50%; border: 3.5px solid #ffffff; box-shadow: 0 3px 10px rgba(0,0,0,0.3); z-index: 10;"></div>
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+            <!-- Radar Ping Ring -->
+            <div style="position: absolute; top: 2px; width: 44px; height: 44px; background: rgba(147, 51, 234, 0.28); border-radius: 50%; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            
+            <!-- Bike Icon Badge -->
+            <div style="width: 42px; height: 42px; background: #9333ea; border-radius: 14px; border: 2.5px solid #ffffff; box-shadow: 0 10px 20px rgba(147, 51, 234, 0.45); display: flex; align-items: center; justify-content: center; z-index: 10;">
+              <svg style="width: 22px; height: 22px; color: white;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18.5" cy="17.5" r="3.5"/>
+                <circle cx="5.5" cy="17.5" r="3.5"/>
+                <circle cx="15" cy="5" r="1"/>
+                <path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
+              </svg>
+            </div>
+
+            <!-- Rider Name Pill -->
+            <div style="background: #1e1b4b; color: #ffffff; font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.25); white-space: nowrap; margin-top: 4px; border: 1px solid rgba(255,255,255,0.2); z-index: 10;">
+              ${riderName ? riderName.split(" ")[0] : "Rider"}
+            </div>
           </div>
         `,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
+        iconSize: [44, 60],
+        iconAnchor: [22, 30],
       });
-      const marker = L.marker([riderLocation.lat, riderLocation.lng], { icon: riderIcon }).addTo(map);
+      const marker = L.marker([riderLocation.lat, riderLocation.lng], { icon: bikerIcon }).addTo(map);
       riderMarkerRef.current = marker;
 
       // Fetch turn-by-turn road route via free OSRM
@@ -369,6 +386,7 @@ function LiveOrderMapModal({
                 riderLocation={currentOrder.riderLocation}
                 destLat={destinationCoords.lat}
                 destLng={destinationCoords.lng}
+                riderName={riderName}
                 onRouteStats={setRouteStats}
               />
 
