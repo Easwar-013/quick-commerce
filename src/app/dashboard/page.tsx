@@ -35,7 +35,7 @@ import {
   Maximize2,
   ShieldCheck,
   Home,
-  Check,
+  MessageSquare,
 } from "lucide-react";
 
 export interface AddressItem {
@@ -49,7 +49,134 @@ export interface AddressItem {
   isDefault: boolean;
 }
 
-// Quick-Commerce (Zepto/Blinkit style) Real-Time Tracking Radar
+// In-app Real-time Geospatial Map Canvas
+function RealtimeTrackingCanvas({
+  riderLocation,
+  destLat,
+  destLng,
+}: {
+  riderLocation?: { lat: number; lng: number } | null;
+  destLat: number;
+  destLng: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const riderMarkerRef = useRef<any>(null);
+  const routeLineRef = useRef<any>(null);
+
+  const fallbackLat = destLat - 0.007;
+  const fallbackLng = destLng - 0.006;
+  const activeRiderLat = riderLocation?.lat ?? fallbackLat;
+  const activeRiderLng = riderLocation?.lng ?? fallbackLng;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initMap() {
+      if (!containerRef.current || mapRef.current) return;
+      const L = (await import("leaflet")).default;
+      await import("leaflet/dist/leaflet.css");
+
+      if (!isMounted || !containerRef.current) return;
+
+      const map = L.map(containerRef.current, {
+        center: [(activeRiderLat + destLat) / 2, (activeRiderLng + destLng) / 2],
+        zoom: 15,
+        zoomControl: false,
+      });
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Red destination home pin
+      const destIcon = L.divIcon({
+        className: "dest-pin",
+        html: `
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 38px; height: 38px; background: #e11d48; border-radius: 12px 12px 2px 12px; transform: rotate(45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px rgba(225,29,72,0.4); border: 2.5px solid #ffffff;">
+              <svg style="transform: rotate(-45deg); width: 18px; height: 18px; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div style="width: 8px; height: 8px; background: #9f1239; border-radius: 50%; margin-top: 4px; opacity: 0.4;"></div>
+          </div>
+        `,
+        iconSize: [38, 48],
+        iconAnchor: [19, 44],
+      });
+      L.marker([destLat, destLng], { icon: destIcon }).addTo(map);
+
+      // Blue pulsing GPS dot for the rider
+      const riderIcon = L.divIcon({
+        className: "rider-pin",
+        html: `
+          <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; width: 36px; height: 36px; background: rgba(56, 189, 248, 0.45); border-radius: 50%; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="width: 20px; height: 20px; background: #0284c7; border-radius: 50%; border: 3.5px solid #ffffff; box-shadow: 0 3px 10px rgba(0,0,0,0.3); z-index: 10;"></div>
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+      const marker = L.marker([activeRiderLat, activeRiderLng], { icon: riderIcon }).addTo(map);
+      riderMarkerRef.current = marker;
+
+      // Realistic route path connecting both points
+      const midLat = (activeRiderLat + destLat) / 2 + 0.0012;
+      const midLng = (activeRiderLng + destLng) / 2 - 0.0018;
+      const polyline = L.polyline(
+        [
+          [activeRiderLat, activeRiderLng],
+          [midLat, midLng],
+          [destLat, destLng],
+        ],
+        {
+          color: "#0284c7",
+          weight: 5,
+          opacity: 0.9,
+          lineCap: "round",
+          lineJoin: "round",
+        }
+      ).addTo(map);
+      routeLineRef.current = polyline;
+
+      map.fitBounds(polyline.getBounds(), { padding: [55, 55] });
+      mapRef.current = map;
+    }
+
+    initMap();
+
+    return () => {
+      isMounted = false;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  // Update marker position dynamically when rider broadcasts coordinates
+  useEffect(() => {
+    if (!mapRef.current || !riderMarkerRef.current) return;
+    if (riderLocation?.lat && riderLocation?.lng) {
+      const newPos: [number, number] = [riderLocation.lat, riderLocation.lng];
+      riderMarkerRef.current.setLatLng(newPos);
+
+      if (routeLineRef.current) {
+        const pts = routeLineRef.current.getLatLngs();
+        if (pts.length >= 2) {
+          routeLineRef.current.setLatLngs([newPos, pts[1], [destLat, destLng]]);
+        }
+      }
+    }
+  }, [riderLocation?.lat, riderLocation?.lng, destLat, destLng]);
+
+  return <div ref={containerRef} className="w-full h-full" />;
+}
+
+// Live Dispatch Modal
 function LiveOrderMapModal({
   order,
   onClose,
@@ -58,9 +185,7 @@ function LiveOrderMapModal({
   onClose: () => void;
 }) {
   const [currentOrder, setCurrentOrder] = useState(order);
-  const [simulatedProgress, setSimulatedProgress] = useState(45);
 
-  // Poll order updates every 2 seconds while modal is open
   useEffect(() => {
     const fetchLatest = async () => {
       try {
@@ -75,64 +200,66 @@ function LiveOrderMapModal({
       }
     };
 
-    const interval = setInterval(fetchLatest, 2000);
+    const interval = setInterval(fetchLatest, 2500);
     return () => clearInterval(interval);
   }, [order._id]);
-
-  // Smooth micro-movement along transit vector
-  useEffect(() => {
-    const transitInterval = setInterval(() => {
-      setSimulatedProgress((prev) => (prev >= 88 ? 35 : prev + 1.5));
-    }, 1800);
-    return () => clearInterval(transitInterval);
-  }, []);
 
   const isOutForDelivery = currentOrder.status === "OUT_FOR_DELIVERY";
   const hasRider = Boolean(currentOrder.assignedRiderEmail || currentOrder.assignedRiderName);
   const isPickedUp = isOutForDelivery && hasRider;
 
-  const riderName = currentOrder.assignedRiderName || "Express Delivery Partner";
+  const riderName = currentOrder.assignedRiderName || "Express Partner";
   const riderPhone = currentOrder.assignedRiderPhone || null;
+  const customerName = currentOrder.customerName || "Customer";
   const destination = `${currentOrder.deliveryAddress?.street || ""}, ${currentOrder.deliveryAddress?.city || ""}`;
   const addressQuery = encodeURIComponent(destination);
 
-  // Compute map center using real rider coordinates if available, otherwise city query
-  const riderLat = currentOrder.riderLocation?.lat;
-  const riderLng = currentOrder.riderLocation?.lng;
-  const mapCenterQuery = riderLat && riderLng ? `${riderLat},${riderLng}` : addressQuery;
-  const mapSrc = `https://maps.google.com/maps?q=${mapCenterQuery}&z=15&output=embed`;
+  // Coordinate setup for Nagapattinam / order location
+  const destLat = 10.7656;
+  const destLng = 79.8428;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-xl w-full h-[90vh] shadow-2xl border border-gray-200 flex flex-col overflow-hidden relative">
-        {/* Top Header */}
-        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-white z-20">
-          <div className="flex items-center gap-2">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-[32px] max-w-sm sm:max-w-md w-full h-[90vh] shadow-2xl border border-gray-100 flex flex-col overflow-hidden relative">
+        {/* Header matching the sample reference */}
+        <div className="bg-white px-5 pt-4 pb-3 border-b border-gray-100 z-20 space-y-2">
+          <div className="flex items-center justify-between">
             <button
               onClick={onClose}
-              className="p-1.5 -ml-1.5 text-gray-500 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition"
+              className="p-1 -ml-1 text-gray-700 hover:text-gray-900 transition cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <h3 className="font-black text-gray-900 text-sm">
-                Order Tracking: {currentOrder.orderNumber}
+            <div className="text-center">
+              <h3 className="font-extrabold text-gray-900 text-sm tracking-tight">
+                On the way to delivery
               </h3>
-              <p className="text-[10px] text-gray-400 font-semibold">
-                FlashKart 10-Minute Express Delivery
+              <p className="text-[11px] font-semibold text-gray-400">
+                #{currentOrder.orderNumber}
               </p>
             </div>
+            <div className="w-5" />
           </div>
 
-          <a
-            href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5"
-          >
-            <Navigation className="w-3.5 h-3.5" />
-            <span>Maps</span>
-          </a>
+          <div className="flex items-start justify-between pt-1">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
+                <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{customerName}</span>
+              </div>
+              <p className="text-[11px] text-gray-500 font-medium max-w-[210px] leading-tight truncate">
+                {destination}
+              </p>
+            </div>
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
+            >
+              Details
+            </a>
+          </div>
         </div>
 
         {/* State 1: Awaiting Rider Pickup */}
@@ -148,128 +275,75 @@ function LiveOrderMapModal({
             <div className="max-w-xs">
               <h4 className="text-base font-black text-gray-900">Rider hasn't picked up yet</h4>
               <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Your items are packed at the dark store. Live rider location will display on the map the moment a partner accepts and starts the trip.
+                Your order is currently being packed at the dark store. Live GPS tracking will begin as soon as a delivery partner accepts the order.
               </p>
             </div>
 
             <div className="bg-white px-4 py-2.5 rounded-2xl border border-gray-200 text-xs font-bold text-amber-800 flex items-center gap-2 shadow-2xs">
               <Clock className="w-4 h-4 animate-spin text-amber-600" />
-              <span>Status: Packing • Dispatching in ~2 mins</span>
+              <span>Packing • Dispatching soon</span>
             </div>
           </div>
         ) : (
-          /* State 2: Live Tracking Canvas & Floating Markers (Zepto/Blinkit Style) */
-          <div className="relative flex-1 flex flex-col overflow-hidden">
-            {/* Map Canvas with Interactive Overlays */}
-            <div className="relative flex-1 bg-slate-100 overflow-hidden">
-              <iframe
-                title="Real Live GPS Map"
-                className="w-full h-full border-0 filter contrast-105"
-                src={mapSrc}
-                loading="lazy"
+          /* State 2: Active Delivery Map View */
+          <div className="relative flex-1 overflow-hidden flex flex-col">
+            <div className="relative flex-1 w-full h-full">
+              <RealtimeTrackingCanvas
+                riderLocation={currentOrder.riderLocation}
+                destLat={destLat}
+                destLng={destLng}
               />
 
-              {/* Road Path & Marker Graphic Overlay */}
-              <div className="absolute inset-0 pointer-events-none">
-                {/* SVG Route Polyline overlay */}
-                <svg className="w-full h-full">
-                  <path
-                    d="M 60 70 Q 150 180 240 210 T 380 340"
-                    fill="none"
-                    stroke="#10b981"
-                    strokeWidth="5"
-                    strokeDasharray="8 6"
-                    className="animate-pulse opacity-85"
-                  />
-                </svg>
-
-                {/* Destination Home Pin (Top) */}
-                <div className="absolute left-[50px] top-[45px] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white shadow-xl flex items-center justify-center border-2 border-white ring-4 ring-indigo-500/20">
-                    <Home className="w-5 h-5" />
-                  </div>
-                  <span className="bg-gray-900 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm mt-1 uppercase">
-                    Your Home
-                  </span>
-                </div>
-
-                {/* Moving Rider Marker (En Route along vector) */}
-                <div
-                  style={{
-                    left: `${simulatedProgress}%`,
-                    top: `${40 + Math.sin(simulatedProgress / 10) * 12}%`,
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ease-linear flex flex-col items-center pointer-events-auto z-10"
-                >
-                  <div className="relative">
-                    <span className="animate-ping absolute -inset-2 rounded-full bg-amber-400 opacity-75" />
-                    <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white shadow-2xl flex items-center justify-center border-2 border-white ring-4 ring-purple-600/30">
-                      <Bike className="w-6 h-6 animate-pulse" />
-                    </div>
-                  </div>
-                  <span className="bg-purple-900 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-md mt-1 whitespace-nowrap">
-                    {riderName}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Zepto/Blinkit Style Bottom Order Card */}
-            <div className="bg-white border-t border-gray-100 p-4 sm:p-5 rounded-t-3xl shadow-xl z-20 space-y-3.5">
-              {/* ETA Bar */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-black text-gray-900 leading-tight">
-                    Your order is on the way
-                  </h4>
-                  <p className="text-xs text-gray-500 font-medium">
-                    Delivery partner speeding to your doorstep
-                  </p>
-                </div>
-                <div className="bg-purple-700 text-white px-3.5 py-2 rounded-2xl text-center shadow-md shadow-purple-600/20">
-                  <span className="text-[10px] font-bold uppercase tracking-wider block opacity-90">
-                    Arriving in
-                  </span>
-                  <span className="text-sm font-black font-mono leading-none">~4 mins</span>
-                </div>
-              </div>
-
-              {/* Rider Details Bar with Call Action */}
-              <div className="bg-purple-50/70 border border-purple-100 p-3 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-purple-200/80 text-purple-900 font-black text-sm flex items-center justify-center border border-purple-300">
-                    <Bike className="w-5 h-5 text-purple-700" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-gray-900">{riderName}</p>
-                    <p className="text-[10px] font-semibold text-purple-700">Delivery Partner</p>
-                  </div>
-                </div>
-
+              {/* Floating Quick Action Buttons */}
+              <div className="absolute top-4 right-4 flex items-center gap-2.5 z-[1000]">
+                {riderPhone && (
+                  <a
+                    href={`sms:${riderPhone}`}
+                    className="w-11 h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
+                  >
+                    <MessageSquare className="w-5 h-5" />
+                  </a>
+                )}
                 {riderPhone ? (
                   <a
                     href={`tel:${riderPhone}`}
-                    className="w-9 h-9 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-md transition active:scale-95 cursor-pointer"
-                    title="Call Rider"
+                    className="w-11 h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full flex items-center justify-center shadow-lg transition active:scale-95 cursor-pointer"
                   >
-                    <Phone className="w-4 h-4" />
+                    <Phone className="w-5 h-5" />
                   </a>
-                ) : (
-                  <span className="text-[10px] font-bold text-purple-600 bg-white px-2 py-1 rounded-xl border border-purple-200">
-                    On Trip
-                  </span>
-                )}
+                ) : null}
+              </div>
+            </div>
+
+            {/* Bottom Card */}
+            <div className="bg-white p-5 rounded-t-[32px] border-t border-gray-100 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] z-20 space-y-4">
+              <div className="flex items-center justify-around px-2">
+                <div className="text-center">
+                  <span className="text-sm font-black text-gray-900 block">0.8 Miles</span>
+                  <span className="text-[11px] font-semibold text-gray-400">Distance</span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-12 h-12 rounded-full bg-white shadow-md border border-gray-100 flex items-center justify-center hover:scale-105 transition"
+                    title="Open Navigation"
+                  >
+                    <Navigation className="w-5 h-5 text-emerald-600" />
+                  </a>
+                </div>
+
+                <div className="text-center">
+                  <span className="text-sm font-black text-gray-900 block">03:00 Mins</span>
+                  <span className="text-[11px] font-semibold text-gray-400">Timer</span>
+                </div>
               </div>
 
-              {/* Items Summary & Destination Address */}
-              <div className="text-xs text-gray-600 pt-1 space-y-1">
-                <p className="font-semibold text-gray-900 truncate">
-                  Delivering to: <span className="font-normal text-gray-600">{destination}</span>
-                </p>
-                <p className="text-[11px] text-gray-400">
-                  {currentOrder.items?.length || 0} items • Total Paid:{" "}
-                  <strong className="text-gray-900">{formatPrice(currentOrder.totalAmount)}</strong>
-                </p>
+              <div className="w-full bg-emerald-600 text-white font-bold py-3.5 px-4 rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20">
+                <Bike className="w-4 h-4 animate-bounce" />
+                <span>Rider {riderName} is En Route</span>
               </div>
             </div>
           </div>
@@ -536,7 +610,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Layout with Sticky Sidebar */}
+        {/* Sidebar & Content */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
           <aside className="skiper-sidebar md:col-span-1 space-y-2 sticky top-20 z-20">
             <button
@@ -570,7 +644,6 @@ function DashboardContent() {
             </button>
           </aside>
 
-          {/* Main Content Area */}
           <section className="md:col-span-3">
             {activeTab === "orders" && (
               <div ref={ordersListRef} className="space-y-4">
@@ -649,7 +722,6 @@ function DashboardContent() {
                           </div>
                         </div>
 
-                        {/* Interactive Track Order Banner with GPS Trigger Button */}
                         {!isDelivered && (
                           <div className="bg-linear-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
                             <div className="flex items-center gap-3">
@@ -708,7 +780,6 @@ function DashboardContent() {
                           ))}
                         </div>
 
-                        {/* Order Footer with Mobile Phone Icon */}
                         <div className="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between text-xs gap-2">
                           <div className="text-gray-600 flex flex-wrap items-center gap-2 font-medium">
                             <span className="inline-flex items-center gap-1">
@@ -952,7 +1023,7 @@ function DashboardContent() {
         </div>
       </main>
 
-      {/* Live Map Modal */}
+      {/* Real-time Map Modal */}
       {trackingOrder && (
         <LiveOrderMapModal
           order={trackingOrder}
