@@ -31,11 +31,8 @@ import {
   Store,
   Navigation,
   Smartphone,
-  Compass,
-  Maximize2,
-  ShieldCheck,
-  Home,
   MessageSquare,
+  Maximize2,
 } from "lucide-react";
 
 export interface AddressItem {
@@ -85,8 +82,9 @@ function RealtimeTrackingCanvas({
         zoomControl: false,
       });
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+      // 100% Free OpenStreetMap Standard Tiles (No API key or watermark)
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
       }).addTo(map);
 
@@ -123,7 +121,7 @@ function RealtimeTrackingCanvas({
       const marker = L.marker([activeRiderLat, activeRiderLng], { icon: riderIcon }).addTo(map);
       riderMarkerRef.current = marker;
 
-      // Realistic route path connecting both points
+      // Clean route path connecting rider to doorstep
       const midLat = (activeRiderLat + destLat) / 2 + 0.0012;
       const midLng = (activeRiderLng + destLng) / 2 - 0.0018;
       const polyline = L.polyline(
@@ -220,7 +218,7 @@ function LiveOrderMapModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-[32px] max-w-sm sm:max-w-md w-full h-[90vh] shadow-2xl border border-gray-100 flex flex-col overflow-hidden relative">
+      <div className="bg-white rounded-[32px] max-w-sm sm:max-w-md w-full h-[90vh] shadow-2xl border border-gray-100 flex flex-col overflow-hidden relative font-sans">
         {/* Header matching the sample reference */}
         <div className="bg-white px-5 pt-4 pb-3 border-b border-gray-100 z-20 space-y-2">
           <div className="flex items-center justify-between">
@@ -610,7 +608,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Sidebar & Content */}
+        {/* Layout with Sticky Sidebar */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
           <aside className="skiper-sidebar md:col-span-1 space-y-2 sticky top-20 z-20">
             <button
@@ -644,6 +642,7 @@ function DashboardContent() {
             </button>
           </aside>
 
+          {/* Main Content Area */}
           <section className="md:col-span-3">
             {activeTab === "orders" && (
               <div ref={ordersListRef} className="space-y-4">
