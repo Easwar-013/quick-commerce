@@ -79,7 +79,7 @@ function RealtimeTrackingCanvas({
         zoomControl: false,
       });
 
-      // Free OpenStreetMap Tiles (Zero watermark, completely free)
+      // Free OpenStreetMap Tiles (No API key, zero watermarks)
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
@@ -118,7 +118,7 @@ function RealtimeTrackingCanvas({
       const marker = L.marker([riderLocation.lat, riderLocation.lng], { icon: riderIcon }).addTo(map);
       riderMarkerRef.current = marker;
 
-      // Fetch Real Road Directions via Free OSRM Routing
+      // Fetch turn-by-turn road route via free OSRM
       try {
         const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${riderLocation.lng},${riderLocation.lat};${destLng},${destLat}?overview=full&geometries=geojson`;
         const res = await fetch(osrmUrl);
@@ -126,7 +126,6 @@ function RealtimeTrackingCanvas({
 
         if (routeData.routes && routeData.routes.length > 0) {
           const route = routeData.routes[0];
-          // Convert GeoJSON [lng, lat] coordinates to Leaflet [lat, lng]
           const latLngs = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
 
           const polyline = L.polyline(latLngs, {
@@ -148,7 +147,6 @@ function RealtimeTrackingCanvas({
           throw new Error("No road route returned");
         }
       } catch {
-        // Fallback straight line if outside road networks
         const polyline = L.polyline(
           [
             [riderLocation.lat, riderLocation.lng],
@@ -181,7 +179,6 @@ function RealtimeTrackingCanvas({
       const newPos: [number, number] = [riderLocation.lat, riderLocation.lng];
       riderMarkerRef.current.setLatLng(newPos);
 
-      // Re-fetch road routing smoothly
       fetch(
         `https://router.project-osrm.org/route/v1/driving/${riderLocation.lng},${riderLocation.lat};${destLng},${destLat}?overview=full&geometries=geojson`
       )
@@ -217,16 +214,24 @@ function LiveOrderMapModal({
   const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [routeStats, setRouteStats] = useState({ distanceKm: "Calculating...", durationMins: "Calculating..." });
 
-  // Geocode destination address via OpenStreetMap Nominatim
+  // Geocode destination address reliably
   useEffect(() => {
     async function geocodeDestination() {
       const addr = currentOrder.deliveryAddress;
       if (!addr) return;
-      const query = `${addr.street || ""}, ${addr.city || ""}, ${addr.pincode || ""}`.trim();
+
+      const cleanCity = addr.city?.trim() || "Nagapattinam";
+      const cleanPincode = addr.pincode?.trim() || "";
 
       try {
+        const query = cleanPincode
+          ? `${cleanPincode}, ${cleanCity}, Tamil Nadu, India`
+          : `${cleanCity}, Tamil Nadu, India`;
+
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            query
+          )}&limit=1`
         );
         const data = await res.json();
         if (data && data.length > 0) {
@@ -240,25 +245,12 @@ function LiveOrderMapModal({
         console.warn("Geocoding address failed:", err);
       }
 
-      // Fallback: If street is unindexed, query city directly
-      try {
-        const resCity = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr.city || "Tamil Nadu")}&limit=1`
-        );
-        const cityData = await resCity.json();
-        if (cityData && cityData.length > 0) {
-          setDestinationCoords({
-            lat: parseFloat(cityData[0].lat),
-            lng: parseFloat(cityData[0].lon),
-          });
-        }
-      } catch {
-        setDestinationCoords({ lat: 10.7656, lng: 79.8428 });
-      }
+      // Default backup: Exact Nagapattinam town coordinates
+      setDestinationCoords({ lat: 10.7656, lng: 79.8428 });
     }
 
     geocodeDestination();
-  }, [currentOrder.deliveryAddress?.street, currentOrder.deliveryAddress?.city]);
+  }, [currentOrder.deliveryAddress?.city, currentOrder.deliveryAddress?.pincode]);
 
   // Poll order updates every 2 seconds
   useEffect(() => {
@@ -401,7 +393,7 @@ function LiveOrderMapModal({
               </div>
             </div>
 
-            {/* Bottom Card matching your sample photo */}
+            {/* Bottom Card */}
             <div className="bg-white p-5 rounded-t-[32px] border-t border-gray-100 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] z-20 space-y-4">
               <div className="flex items-center justify-around px-2">
                 <div className="text-center">
@@ -1109,7 +1101,7 @@ function DashboardContent() {
         </div>
       </main>
 
-      {/* Live Map Modal */}
+      {/* Real-time Map Modal */}
       {trackingOrder && (
         <LiveOrderMapModal
           order={trackingOrder}
