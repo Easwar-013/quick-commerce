@@ -11,6 +11,7 @@ import { useGSAP } from "@gsap/react";
 import DesktopHeader from "@/components/desktop/DesktopHeader";
 import { formatPrice } from "@/lib/utils";
 import { useCartStore } from "@/store/useCartStore";
+import { SkiperSmoothInput } from "@/components/ui/skiper-input";
 import {
   Package,
   MapPin,
@@ -33,6 +34,9 @@ import {
   Smartphone,
   MessageSquare,
   Maximize2,
+  Pencil,
+  Building2,
+  Hash,
 } from "lucide-react";
 
 export interface AddressItem {
@@ -110,10 +114,7 @@ function RealtimeTrackingCanvas({
         className: "custom-biker-icon",
         html: `
           <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
-            <!-- Radar Ping Ring -->
             <div style="position: absolute; top: 2px; width: 44px; height: 44px; background: rgba(147, 51, 234, 0.28); border-radius: 50%; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            
-            <!-- Bike Icon Badge -->
             <div style="width: 42px; height: 42px; background: #9333ea; border-radius: 14px; border: 2.5px solid #ffffff; box-shadow: 0 10px 20px rgba(147, 51, 234, 0.45); display: flex; align-items: center; justify-content: center; z-index: 10;">
               <svg style="width: 22px; height: 22px; color: white;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="18.5" cy="17.5" r="3.5"/>
@@ -122,8 +123,6 @@ function RealtimeTrackingCanvas({
                 <path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
               </svg>
             </div>
-
-            <!-- Rider Name Pill -->
             <div style="background: #1e1b4b; color: #ffffff; font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.25); white-space: nowrap; margin-top: 4px; border: 1px solid rgba(255,255,255,0.2); z-index: 10;">
               ${riderName ? riderName.split(" ")[0] : "Rider"}
             </div>
@@ -262,7 +261,6 @@ function LiveOrderMapModal({
         console.warn("Geocoding address failed:", err);
       }
 
-      // Default backup: Exact Nagapattinam town coordinates
       setDestinationCoords({ lat: 10.7656, lng: 79.8428 });
     }
 
@@ -306,7 +304,7 @@ function LiveOrderMapModal({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-[32px] max-w-sm sm:max-w-md w-full h-[90vh] shadow-2xl border border-gray-100 flex flex-col overflow-hidden relative font-sans">
-        {/* Header matching the sample reference */}
+        {/* Header */}
         <div className="bg-white px-5 pt-4 pb-3 border-b border-gray-100 z-20 space-y-2">
           <div className="flex items-center justify-between">
             <button
@@ -466,6 +464,7 @@ function DashboardContent() {
 
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [newContactName, setNewContactName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newStreet, setNewStreet] = useState("");
@@ -500,7 +499,7 @@ function DashboardContent() {
   useEffect(() => {
     if (tabParam === "addresses") {
       setActiveTab("addresses");
-      if (addAddressPrompt) setIsAddressModalOpen(true);
+      if (addAddressPrompt) handleOpenAddAddress();
     }
   }, [tabParam, addAddressPrompt]);
 
@@ -608,25 +607,66 @@ function DashboardContent() {
     }, 450);
   };
 
-  const handleAddAddress = (e: React.FormEvent) => {
+  const handleOpenAddAddress = () => {
+    setEditingAddressId(null);
+    setNewContactName(session?.user?.name || displayName || "");
+    setNewPhone("");
+    setNewStreet("");
+    setNewCity("");
+    setNewPincode("");
+    setNewType("HOME");
+    setIsAddressModalOpen(true);
+  };
+
+  const handleOpenEditAddress = (addr: AddressItem) => {
+    setEditingAddressId(addr.id);
+    setNewContactName(addr.contactName || displayName);
+    setNewPhone(addr.phone || "");
+    setNewStreet(addr.street || "");
+    setNewCity(addr.city || "");
+    setNewPincode(addr.pincode || "");
+    setNewType(addr.type || "HOME");
+    setIsAddressModalOpen(true);
+  };
+
+  const handleSaveAddress = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStreet || !newCity || !newPincode || !displayEmail || !newPhone) return;
 
-    const newEntry: AddressItem = {
-      id: Date.now().toString(),
-      type: newType,
-      contactName: newContactName.trim() || displayName,
-      phone: newPhone.trim(),
-      street: newStreet.trim(),
-      city: newCity.trim(),
-      pincode: newPincode.trim(),
-      isDefault: addresses.length === 0,
-    };
+    if (editingAddressId) {
+      const updated = addresses.map((a) =>
+        a.id === editingAddressId
+          ? {
+              ...a,
+              type: newType,
+              contactName: newContactName.trim() || displayName,
+              phone: newPhone.trim(),
+              street: newStreet.trim(),
+              city: newCity.trim(),
+              pincode: newPincode.trim(),
+            }
+          : a
+      );
+      setAddresses(updated);
+      localStorage.setItem(`flashkart_addresses_${displayEmail}`, JSON.stringify(updated));
+    } else {
+      const newEntry: AddressItem = {
+        id: Date.now().toString(),
+        type: newType,
+        contactName: newContactName.trim() || displayName,
+        phone: newPhone.trim(),
+        street: newStreet.trim(),
+        city: newCity.trim(),
+        pincode: newPincode.trim(),
+        isDefault: addresses.length === 0,
+      };
 
-    const updated = [...addresses, newEntry];
-    setAddresses(updated);
-    localStorage.setItem(`flashkart_addresses_${displayEmail}`, JSON.stringify(updated));
+      const updated = [...addresses, newEntry];
+      setAddresses(updated);
+      localStorage.setItem(`flashkart_addresses_${displayEmail}`, JSON.stringify(updated));
+    }
 
+    setEditingAddressId(null);
     setNewStreet("");
     setNewCity("");
     setNewPincode("");
@@ -914,7 +954,7 @@ function DashboardContent() {
                     </p>
                   </div>
                   <button
-                    onClick={() => setIsAddressModalOpen(true)}
+                    onClick={handleOpenAddAddress}
                     className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add New Address
@@ -926,7 +966,7 @@ function DashboardContent() {
                     <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                     <p className="text-gray-800 font-bold text-sm">No saved delivery addresses</p>
                     <button
-                      onClick={() => setIsAddressModalOpen(true)}
+                      onClick={handleOpenAddAddress}
                       className="inline-block mt-4 bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl cursor-pointer shadow-xs"
                     >
                       Add Address Now
@@ -962,12 +1002,24 @@ function DashboardContent() {
                                 </button>
                               )}
                             </div>
-                            <button
-                              onClick={() => handleDeleteAddress(addr.id)}
-                              className="text-gray-400 hover:text-red-600 p-1 transition cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+
+                            {/* Actions: Edit and Delete */}
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleOpenEditAddress(addr)}
+                                title="Edit address"
+                                className="text-gray-400 hover:text-emerald-600 p-1.5 rounded-lg hover:bg-emerald-50 transition cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAddress(addr.id)}
+                                title="Delete address"
+                                className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
 
                           <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 mb-2 space-y-1">
@@ -991,122 +1043,108 @@ function DashboardContent() {
                   </div>
                 )}
 
-                {/* Add Address Modal */}
+                {/* Add / Edit Address Modal with SkiperSmoothInput integration */}
                 {isAddressModalOpen && (
                   <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-                      <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-900 text-sm">Add Delivery Location</h3>
+                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="flex items-center justify-between mb-5 border-b border-gray-100 pb-3.5">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-sm tracking-tight">
+                            {editingAddressId ? "Edit Delivery Location" : "Add Delivery Location"}
+                          </h3>
+                          <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                            Provide your doorstep address details for fast delivery.
+                          </p>
+                        </div>
                         <button
                           onClick={() => setIsAddressModalOpen(false)}
-                          className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                          className="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
                         >
                           <X className="w-5 h-5" />
                         </button>
                       </div>
 
-                      <form onSubmit={handleAddAddress} className="space-y-3.5">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                              Receiver Name
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="Full Name"
-                              value={newContactName}
-                              onChange={(e) => setNewContactName(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                              Mobile Number
-                            </label>
-                            <input
-                              type="tel"
-                              required
-                              placeholder="10-digit number"
-                              value={newPhone}
-                              onChange={(e) => setNewPhone(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                            Address Type
-                          </label>
-                          <select
-                            value={newType}
-                            onChange={(e) => setNewType(e.target.value as any)}
-                            className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                          >
-                            <option value="HOME">Home</option>
-                            <option value="WORK">Work</option>
-                            <option value="OTHER">Other</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                            Street / Flat No
-                          </label>
-                          <input
-                            type="text"
+                      <form onSubmit={handleSaveAddress} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <SkiperSmoothInput
+                            label="Receiver Name"
+                            icon={<UserCheck className="w-4 h-4" />}
+                            value={newContactName}
+                            onChange={(val) => setNewContactName(val)}
                             required
-                            placeholder="e.g. Flat 402, Green Meadows"
-                            value={newStreet}
-                            onChange={(e) => setNewStreet(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
+                          />
+
+                          <SkiperSmoothInput
+                            label="Mobile Number"
+                            icon={<Smartphone className="w-4 h-4" />}
+                            value={newPhone}
+                            onChange={(val) => setNewPhone(val)}
+                            required
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                              City
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="City"
-                              value={newCity}
-                              onChange={(e) => setNewCity(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
-                              Pincode
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="6-digit pincode"
-                              value={newPincode}
-                              onChange={(e) => setNewPincode(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-xl text-xs border-gray-300 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
-                            />
+                        {/* Address Type Selector */}
+                        <div className="relative">
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                            Address Type
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {(["HOME", "WORK", "OTHER"] as const).map((typeOption) => (
+                              <button
+                                key={typeOption}
+                                type="button"
+                                onClick={() => setNewType(typeOption)}
+                                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                  newType === typeOption
+                                    ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-2xs"
+                                    : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                                }`}
+                              >
+                                {typeOption}
+                              </button>
+                            ))}
                           </div>
                         </div>
 
-                        <div className="flex gap-2 pt-3">
+                        <SkiperSmoothInput
+                          label="Street / Flat / Door No"
+                          icon={<MapPin className="w-4 h-4" />}
+                          value={newStreet}
+                          onChange={(val) => setNewStreet(val)}
+                          required
+                        />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <SkiperSmoothInput
+                            label="City / Town"
+                            icon={<Building2 className="w-4 h-4" />}
+                            value={newCity}
+                            onChange={(val) => setNewCity(val)}
+                            required
+                          />
+
+                          <SkiperSmoothInput
+                            label="Pincode"
+                            icon={<Hash className="w-4 h-4" />}
+                            value={newPincode}
+                            onChange={(val) => setNewPincode(val)}
+                            required
+                          />
+                        </div>
+
+                        <div className="flex gap-2.5 pt-3">
                           <button
                             type="button"
                             onClick={() => setIsAddressModalOpen(false)}
-                            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer"
+                            className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
-                            className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs transition-all active:scale-95"
+                            className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold cursor-pointer shadow-md hover:shadow-emerald-600/30 transition-all active:scale-95"
                           >
-                            Save Address
+                            {editingAddressId ? "Update Address" : "Save Address"}
                           </button>
                         </div>
                       </form>
