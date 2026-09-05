@@ -46,25 +46,22 @@ export interface AddressItem {
   isDefault: boolean;
 }
 
-// In-app Real-time Geospatial Map Canvas
+// In-app Real-time Geospatial Map Canvas with Road-Snapping Routing
 function RealtimeTrackingCanvas({
   riderLocation,
   destLat,
   destLng,
+  onRouteStats,
 }: {
-  riderLocation?: { lat: number; lng: number } | null;
+  riderLocation: { lat: number; lng: number };
   destLat: number;
   destLng: number;
+  onRouteStats?: (stats: { distanceKm: string; durationMins: string }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const riderMarkerRef = useRef<any>(null);
   const routeLineRef = useRef<any>(null);
-
-  const fallbackLat = destLat - 0.007;
-  const fallbackLng = destLng - 0.006;
-  const activeRiderLat = riderLocation?.lat ?? fallbackLat;
-  const activeRiderLng = riderLocation?.lng ?? fallbackLng;
 
   useEffect(() => {
     let isMounted = true;
@@ -77,18 +74,18 @@ function RealtimeTrackingCanvas({
       if (!isMounted || !containerRef.current) return;
 
       const map = L.map(containerRef.current, {
-        center: [(activeRiderLat + destLat) / 2, (activeRiderLng + destLng) / 2],
+        center: [(riderLocation.lat + destLat) / 2, (riderLocation.lng + destLng) / 2],
         zoom: 15,
         zoomControl: false,
       });
 
-      // 100% Free OpenStreetMap Standard Tiles (No API key or watermark)
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      // Free OpenStreetMap Tiles (Zero watermark, completely free)
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(map);
 
-      // Red destination home pin
+      // Red Destination Home Pin
       const destIcon = L.divIcon({
         className: "dest-pin",
         html: `
@@ -106,41 +103,63 @@ function RealtimeTrackingCanvas({
       });
       L.marker([destLat, destLng], { icon: destIcon }).addTo(map);
 
-      // Blue pulsing GPS dot for the rider
+      // Blue Pulsing Live Rider Marker
       const riderIcon = L.divIcon({
         className: "rider-pin",
         html: `
           <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-            <div style="position: absolute; width: 36px; height: 36px; background: rgba(56, 189, 248, 0.45); border-radius: 50%; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+            <div style="position: absolute; width: 36px; height: 36px; background: rgba(2, 132, 199, 0.4); border-radius: 50%; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
             <div style="width: 20px; height: 20px; background: #0284c7; border-radius: 50%; border: 3.5px solid #ffffff; box-shadow: 0 3px 10px rgba(0,0,0,0.3); z-index: 10;"></div>
           </div>
         `,
         iconSize: [40, 40],
         iconAnchor: [20, 20],
       });
-      const marker = L.marker([activeRiderLat, activeRiderLng], { icon: riderIcon }).addTo(map);
+      const marker = L.marker([riderLocation.lat, riderLocation.lng], { icon: riderIcon }).addTo(map);
       riderMarkerRef.current = marker;
 
-      // Clean route path connecting rider to doorstep
-      const midLat = (activeRiderLat + destLat) / 2 + 0.0012;
-      const midLng = (activeRiderLng + destLng) / 2 - 0.0018;
-      const polyline = L.polyline(
-        [
-          [activeRiderLat, activeRiderLng],
-          [midLat, midLng],
-          [destLat, destLng],
-        ],
-        {
-          color: "#0284c7",
-          weight: 5,
-          opacity: 0.9,
-          lineCap: "round",
-          lineJoin: "round",
-        }
-      ).addTo(map);
-      routeLineRef.current = polyline;
+      // Fetch Real Road Directions via Free OSRM Routing
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${riderLocation.lng},${riderLocation.lat};${destLng},${destLat}?overview=full&geometries=geojson`;
+        const res = await fetch(osrmUrl);
+        const routeData = await res.json();
 
-      map.fitBounds(polyline.getBounds(), { padding: [55, 55] });
+        if (routeData.routes && routeData.routes.length > 0) {
+          const route = routeData.routes[0];
+          // Convert GeoJSON [lng, lat] coordinates to Leaflet [lat, lng]
+          const latLngs = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+
+          const polyline = L.polyline(latLngs, {
+            color: "#0284c7",
+            weight: 5,
+            opacity: 0.9,
+            lineCap: "round",
+            lineJoin: "round",
+          }).addTo(map);
+          routeLineRef.current = polyline;
+          map.fitBounds(polyline.getBounds(), { padding: [55, 55] });
+
+          if (onRouteStats) {
+            const distanceKm = (route.distance / 1000).toFixed(1) + " km";
+            const durationMins = Math.max(1, Math.ceil(route.duration / 60)) + " mins";
+            onRouteStats({ distanceKm, durationMins });
+          }
+        } else {
+          throw new Error("No road route returned");
+        }
+      } catch {
+        // Fallback straight line if outside road networks
+        const polyline = L.polyline(
+          [
+            [riderLocation.lat, riderLocation.lng],
+            [destLat, destLng],
+          ],
+          { color: "#0284c7", weight: 4, dashArray: "6, 8" }
+        ).addTo(map);
+        routeLineRef.current = polyline;
+        map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+      }
+
       mapRef.current = map;
     }
 
@@ -155,19 +174,31 @@ function RealtimeTrackingCanvas({
     };
   }, []);
 
-  // Update marker position dynamically when rider broadcasts coordinates
+  // Update live marker & road polyline when rider moves
   useEffect(() => {
     if (!mapRef.current || !riderMarkerRef.current) return;
     if (riderLocation?.lat && riderLocation?.lng) {
       const newPos: [number, number] = [riderLocation.lat, riderLocation.lng];
       riderMarkerRef.current.setLatLng(newPos);
 
-      if (routeLineRef.current) {
-        const pts = routeLineRef.current.getLatLngs();
-        if (pts.length >= 2) {
-          routeLineRef.current.setLatLngs([newPos, pts[1], [destLat, destLng]]);
-        }
-      }
+      // Re-fetch road routing smoothly
+      fetch(
+        `https://router.project-osrm.org/route/v1/driving/${riderLocation.lng},${riderLocation.lat};${destLng},${destLat}?overview=full&geometries=geojson`
+      )
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.routes && data.routes.length > 0 && routeLineRef.current) {
+            const latLngs = data.routes[0].geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+            routeLineRef.current.setLatLngs(latLngs);
+
+            if (onRouteStats) {
+              const distanceKm = (data.routes[0].distance / 1000).toFixed(1) + " km";
+              const durationMins = Math.max(1, Math.ceil(data.routes[0].duration / 60)) + " mins";
+              onRouteStats({ distanceKm, durationMins });
+            }
+          }
+        })
+        .catch(() => {});
     }
   }, [riderLocation?.lat, riderLocation?.lng, destLat, destLng]);
 
@@ -183,7 +214,53 @@ function LiveOrderMapModal({
   onClose: () => void;
 }) {
   const [currentOrder, setCurrentOrder] = useState(order);
+  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [routeStats, setRouteStats] = useState({ distanceKm: "Calculating...", durationMins: "Calculating..." });
 
+  // Geocode destination address via OpenStreetMap Nominatim
+  useEffect(() => {
+    async function geocodeDestination() {
+      const addr = currentOrder.deliveryAddress;
+      if (!addr) return;
+      const query = `${addr.street || ""}, ${addr.city || ""}, ${addr.pincode || ""}`.trim();
+
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
+        );
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setDestinationCoords({
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn("Geocoding address failed:", err);
+      }
+
+      // Fallback: If street is unindexed, query city directly
+      try {
+        const resCity = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr.city || "Tamil Nadu")}&limit=1`
+        );
+        const cityData = await resCity.json();
+        if (cityData && cityData.length > 0) {
+          setDestinationCoords({
+            lat: parseFloat(cityData[0].lat),
+            lng: parseFloat(cityData[0].lon),
+          });
+        }
+      } catch {
+        setDestinationCoords({ lat: 10.7656, lng: 79.8428 });
+      }
+    }
+
+    geocodeDestination();
+  }, [currentOrder.deliveryAddress?.street, currentOrder.deliveryAddress?.city]);
+
+  // Poll order updates every 2 seconds
   useEffect(() => {
     const fetchLatest = async () => {
       try {
@@ -198,7 +275,7 @@ function LiveOrderMapModal({
       }
     };
 
-    const interval = setInterval(fetchLatest, 2500);
+    const interval = setInterval(fetchLatest, 2000);
     return () => clearInterval(interval);
   }, [order._id]);
 
@@ -206,15 +283,16 @@ function LiveOrderMapModal({
   const hasRider = Boolean(currentOrder.assignedRiderEmail || currentOrder.assignedRiderName);
   const isPickedUp = isOutForDelivery && hasRider;
 
+  const hasLiveGps =
+    currentOrder.riderLocation &&
+    typeof currentOrder.riderLocation.lat === "number" &&
+    typeof currentOrder.riderLocation.lng === "number";
+
   const riderName = currentOrder.assignedRiderName || "Express Partner";
   const riderPhone = currentOrder.assignedRiderPhone || null;
   const customerName = currentOrder.customerName || "Customer";
   const destination = `${currentOrder.deliveryAddress?.street || ""}, ${currentOrder.deliveryAddress?.city || ""}`;
   const addressQuery = encodeURIComponent(destination);
-
-  // Coordinate setup for Nagapattinam / order location
-  const destLat = 10.7656;
-  const destLng = 79.8428;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
@@ -282,14 +360,24 @@ function LiveOrderMapModal({
               <span>Packing • Dispatching soon</span>
             </div>
           </div>
+        ) : !hasLiveGps || !destinationCoords ? (
+          /* State 2: Waiting for GPS Signal */
+          <div className="flex-1 bg-gray-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
+            <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
+            <div>
+              <h4 className="text-sm font-bold text-gray-800">Acquiring Rider Live Location...</h4>
+              <p className="text-xs text-gray-500 mt-1">Connecting to partner's GPS navigation feed.</p>
+            </div>
+          </div>
         ) : (
-          /* State 2: Active Delivery Map View */
+          /* State 3: Real Road-Snapping Navigation Map */
           <div className="relative flex-1 overflow-hidden flex flex-col">
             <div className="relative flex-1 w-full h-full">
               <RealtimeTrackingCanvas
                 riderLocation={currentOrder.riderLocation}
-                destLat={destLat}
-                destLng={destLng}
+                destLat={destinationCoords.lat}
+                destLng={destinationCoords.lng}
+                onRouteStats={setRouteStats}
               />
 
               {/* Floating Quick Action Buttons */}
@@ -313,11 +401,11 @@ function LiveOrderMapModal({
               </div>
             </div>
 
-            {/* Bottom Card */}
+            {/* Bottom Card matching your sample photo */}
             <div className="bg-white p-5 rounded-t-[32px] border-t border-gray-100 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] z-20 space-y-4">
               <div className="flex items-center justify-around px-2">
                 <div className="text-center">
-                  <span className="text-sm font-black text-gray-900 block">0.8 Miles</span>
+                  <span className="text-sm font-black text-gray-900 block">{routeStats.distanceKm}</span>
                   <span className="text-[11px] font-semibold text-gray-400">Distance</span>
                 </div>
 
@@ -334,7 +422,7 @@ function LiveOrderMapModal({
                 </div>
 
                 <div className="text-center">
-                  <span className="text-sm font-black text-gray-900 block">03:00 Mins</span>
+                  <span className="text-sm font-black text-gray-900 block">{routeStats.durationMins}</span>
                   <span className="text-[11px] font-semibold text-gray-400">Timer</span>
                 </div>
               </div>
@@ -608,7 +696,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Layout with Sticky Sidebar */}
+        {/* Sidebar & Content */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
           <aside className="skiper-sidebar md:col-span-1 space-y-2 sticky top-20 z-20">
             <button
@@ -642,7 +730,6 @@ function DashboardContent() {
             </button>
           </aside>
 
-          {/* Main Content Area */}
           <section className="md:col-span-3">
             {activeTab === "orders" && (
               <div ref={ordersListRef} className="space-y-4">
@@ -1022,7 +1109,7 @@ function DashboardContent() {
         </div>
       </main>
 
-      {/* Real-time Map Modal */}
+      {/* Live Map Modal */}
       {trackingOrder && (
         <LiveOrderMapModal
           order={trackingOrder}
