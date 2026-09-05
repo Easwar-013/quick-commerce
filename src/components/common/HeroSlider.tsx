@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ChevronLeft, ChevronRight, Zap, Clock, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Zap, Clock, ShieldCheck } from "lucide-react";
 
 const slides = [
   {
@@ -13,8 +13,6 @@ const slides = [
     title: "Fresh Groceries & Daily Needs",
     subtitle: "Delivered straight from dark stores right to your doorstep in minutes",
     gradient: "from-emerald-800 via-emerald-600 to-teal-600",
-    tag: "Flat 25% OFF on first 3 orders",
-    code: "FLASH25",
   },
   {
     id: 2,
@@ -23,8 +21,6 @@ const slides = [
     title: "Chilled Drinks & Crispy Snacks",
     subtitle: "Stock up your midnight cravings and party essentials right now",
     gradient: "from-amber-600 via-orange-600 to-rose-600",
-    tag: "Combos starting at ₹49",
-    code: "SNACKNOW",
   },
   {
     id: 3,
@@ -33,28 +29,65 @@ const slides = [
     title: "Organic Fruits & Fresh Greens",
     subtitle: "Handpicked premium quality checked daily at sunrise",
     gradient: "from-teal-800 via-emerald-700 to-green-700",
-    tag: "Zero delivery fee above ₹199",
-    code: "FRESHFREE",
   },
 ];
 
 export default function HeroSlider() {
   const containerRef = useRef<HTMLDivElement>(null);
   const slideContentRef = useRef<HTMLDivElement>(null);
-  const floatingBadgeRef = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(0);
+
+  // Touch / Drag swipe tracking
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const minSwipeDistance = 45; // Minimum px distance required to count as a swipe
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.targetTouches[0].clientX;
+    touchEndX.current = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    const distance = touchStartX.current - touchEndX.current;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe) {
+      nextSlide();
+    } else if (isRightSwipe) {
+      prevSlide();
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
+
+  // Mouse drag support for desktop testing
+  const mouseStartX = useRef<number | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    mouseStartX.current = e.clientX;
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (mouseStartX.current === null) return;
+    const distance = mouseStartX.current - e.clientX;
+    if (distance > minSwipeDistance) {
+      nextSlide();
+    } else if (distance < -minSwipeDistance) {
+      prevSlide();
+    }
+    mouseStartX.current = null;
+  };
 
   // GSAP Ambient Floating Animation
   useGSAP(
     () => {
-      gsap.to(".gsap-float", {
-        y: -8,
-        duration: 2,
-        repeat: -1,
-        yoyo: true,
-        ease: "power1.inOut",
-      });
-
       gsap.to(".gsap-pulse-glow", {
         scale: 1.15,
         opacity: 0.25,
@@ -86,12 +119,6 @@ export default function HeroSlider() {
         { opacity: 0, y: 15 },
         { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" },
         "-=0.3"
-      )
-      .fromTo(
-        ".slide-anim-tag",
-        { opacity: 0, scale: 0.85 },
-        { opacity: 1, scale: 1, duration: 0.4, ease: "elastic.out(1, 0.6)" },
-        "-=0.2"
       );
   }, [current]);
 
@@ -114,16 +141,24 @@ export default function HeroSlider() {
   const BadgeIcon = activeSlide.badgeIcon;
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-hidden rounded-3xl mb-8 shadow-lg group">
+    <div
+      ref={containerRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      className="relative w-full overflow-hidden rounded-3xl mb-8 shadow-lg group select-none cursor-grab active:cursor-grabbing touch-pan-y"
+    >
       {/* Background Stage */}
       <div
-        className={`w-full bg-gradient-to-r ${activeSlide.gradient} p-8 sm:p-12 text-white flex flex-col justify-between min-h-[250px] sm:min-h-[290px] relative overflow-hidden transition-all duration-700`}
+        className={`w-full bg-gradient-to-r ${activeSlide.gradient} p-8 sm:p-12 text-white flex flex-col justify-center min-h-[220px] sm:min-h-[260px] relative overflow-hidden transition-all duration-700`}
       >
         {/* GSAP Animated Ambient Orbs */}
         <div className="gsap-pulse-glow absolute -right-12 -bottom-12 w-72 h-72 bg-white/20 rounded-full blur-3xl pointer-events-none" />
         <div className="gsap-pulse-glow absolute right-1/3 -top-12 w-56 h-56 bg-amber-300/20 rounded-full blur-2xl pointer-events-none" />
 
-        <div ref={slideContentRef} className="relative z-10">
+        <div ref={slideContentRef} className="relative z-10 pointer-events-none">
           <div className="slide-anim-badge inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase mb-3 shadow-inner">
             <BadgeIcon className="w-4 h-4 text-amber-300" />
             {activeSlide.badge}
@@ -137,30 +172,20 @@ export default function HeroSlider() {
             {activeSlide.subtitle}
           </p>
         </div>
-
-        {/* Footer Badges & Promo Code */}
-        <div className="slide-anim-tag relative z-10 flex flex-wrap items-center gap-3 pt-6">
-          <div className="gsap-float bg-white text-gray-900 text-xs font-extrabold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-md">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            {activeSlide.tag}
-          </div>
-
-          <span className="text-xs bg-black/30 backdrop-blur-md px-3.5 py-2 rounded-xl font-mono tracking-widest border border-white/10">
-            CODE: <strong>{activeSlide.code}</strong>
-          </span>
-        </div>
       </div>
 
-      {/* Navigation Arrows */}
+      {/* Navigation Arrows (Desktop) */}
       <button
         onClick={prevSlide}
-        className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white hover:text-gray-900 transition-all opacity-0 group-hover:opacity-100 shadow-md hover:scale-110 active:scale-95"
+        className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white hover:text-gray-900 transition-all opacity-0 group-hover:opacity-100 shadow-md hover:scale-110 active:scale-95 cursor-pointer"
+        aria-label="Previous Slide"
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
       <button
         onClick={nextSlide}
-        className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white hover:text-gray-900 transition-all opacity-0 group-hover:opacity-100 shadow-md hover:scale-110 active:scale-95"
+        className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white hover:text-gray-900 transition-all opacity-0 group-hover:opacity-100 shadow-md hover:scale-110 active:scale-95 cursor-pointer"
+        aria-label="Next Slide"
       >
         <ChevronRight className="w-5 h-5" />
       </button>
@@ -171,9 +196,10 @@ export default function HeroSlider() {
           <button
             key={idx}
             onClick={() => setCurrent(idx)}
-            className={`h-1.5 rounded-full transition-all duration-500 ${
+            className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
               current === idx ? "w-8 bg-white" : "w-2 bg-white/40"
             }`}
+            aria-label={`Go to slide ${idx + 1}`}
           />
         ))}
       </div>

@@ -10,7 +10,7 @@ import DesktopHeader from "@/components/desktop/DesktopHeader";
 import HeroSlider from "@/components/common/HeroSlider";
 import ProductDetailsDrawer from "@/components/common/ProductDetailsDrawer";
 import { useFilter } from "@/context/FilterContext";
-import { Loader2, Zap, ShieldCheck, Clock3, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 
 export const CATEGORIES = [
   "All",
@@ -107,39 +107,6 @@ export default function CustomerStorePage() {
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         <HeroSlider />
-
-        {/* Perks Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex items-center gap-3.5">
-            <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl shrink-0">
-              <Clock3 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-900">10-Minute Dispatch</p>
-              <p className="text-[11px] text-gray-600 font-medium">Packed fresh from nearest dark store</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex items-center gap-3.5">
-            <div className="p-2.5 bg-amber-100 text-amber-900 rounded-xl shrink-0">
-              <Zap className="w-5 h-5 text-amber-700" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-900">Unbeatable Prices</p>
-              <p className="text-[11px] text-gray-600 font-medium">Direct distributor warehouse deals</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex items-center gap-3.5">
-            <div className="p-2.5 bg-teal-100 text-teal-900 rounded-xl shrink-0">
-              <ShieldCheck className="w-5 h-5 text-teal-700" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-900">100% Quality Assured</p>
-              <p className="text-[11px] text-gray-600 font-medium">Instant doorstep refund guarantee</p>
-            </div>
-          </div>
-        </div>
 
         {/* Category Filter Pills */}
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">

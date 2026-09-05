@@ -8,12 +8,14 @@ interface SkiperDevouringButtonProps {
   loading: boolean;
   onDevourAndSubmit: () => void;
   textToDevour: string;
+  label?: string;
 }
 
 export function SkiperDevouringButton({
   loading,
   onDevourAndSubmit,
   textToDevour,
+  label = "Sign In",
 }: SkiperDevouringButtonProps) {
   const [isDevouring, setIsDevouring] = useState(false);
 
@@ -21,42 +23,40 @@ export function SkiperDevouringButton({
     e.preventDefault();
     if (loading || isDevouring) return;
 
-    if (!textToDevour) {
-      onDevourAndSubmit();
-      return;
-    }
-
-    // Trigger devouring animation before final API call
     setIsDevouring(true);
+    // Trigger submit and clear inputs instantly
+    onDevourAndSubmit();
+
     setTimeout(() => {
       setIsDevouring(false);
-      onDevourAndSubmit();
-    }, 700);
+    }, 600);
   };
+
+  const letters = textToDevour.slice(0, 18).split("");
 
   return (
     <div className="relative w-full">
       {/* Devouring Vortex Particles falling into button */}
       <AnimatePresence>
         {isDevouring && (
-          <div className="absolute -top-12 inset-x-0 flex justify-center pointer-events-none z-30">
-            {textToDevour.slice(0, 14).split("").map((char, i) => (
+          <div className="absolute -top-12 inset-x-0 flex justify-center items-center pointer-events-none z-30">
+            {letters.map((char, i) => (
               <motion.span
                 key={i}
-                initial={{ y: -10, scale: 1, opacity: 1 }}
+                initial={{ y: -6, opacity: 1, scale: 1 }}
                 animate={{
-                  y: [0, 20, 48],
-                  x: [(i - textToDevour.length / 2) * 8, 0],
+                  y: [0, 18, 52],
+                  x: [(i - letters.length / 2) * 8, 0],
                   scale: [1, 0.7, 0],
                   opacity: [1, 0.8, 0],
-                  rotate: [0, (i % 2 === 0 ? 1 : -1) * 45],
+                  rotate: [0, (i % 2 === 0 ? 1 : -1) * 35],
                 }}
                 transition={{
                   duration: 0.55,
-                  delay: i * 0.03,
+                  delay: i * 0.02,
                   ease: "easeInOut",
                 }}
-                className="inline-block text-xs font-bold text-emerald-700 bg-emerald-100 px-1 rounded shadow-xs"
+                className="inline-block text-[11px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1 rounded shadow-xs"
               >
                 {char}
               </motion.span>
@@ -68,12 +68,12 @@ export function SkiperDevouringButton({
       <motion.button
         type="button"
         onClick={handleClick}
+        disabled={loading || isDevouring}
         animate={{
           scale: isDevouring ? [1, 0.96, 1.02, 1] : 1,
         }}
-        transition={{ duration: 0.4 }}
-        disabled={loading || isDevouring}
-        className="relative overflow-hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl text-xs transition-all shadow-md hover:shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+        transition={{ duration: 0.3 }}
+        className="relative overflow-hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl text-xs transition-all duration-200 shadow-md hover:shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
       >
         {loading || isDevouring ? (
           <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export function SkiperDevouringButton({
             <span>{isDevouring ? "Consuming credentials..." : "Authenticating..."}</span>
           </div>
         ) : (
-          <span>Sign In</span>
+          <span>{label}</span>
         )}
       </motion.button>
     </div>

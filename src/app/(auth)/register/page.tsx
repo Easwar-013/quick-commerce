@@ -3,11 +3,21 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useSpring,
+  useReducedMotion,
+} from "framer-motion";
 import { Lock, Mail, User, Loader2, ArrowLeft } from "lucide-react";
 
-// Skiper 56: Smooth Caret & Individual Character Spring Physics
-function Skiper56SmoothInput({
+const PASSWORD_CHAR =
+  typeof navigator !== "undefined" && navigator.userAgent.match(/firefox|fxios/i)
+    ? "\u25CF"
+    : "\u2022";
+
+function SkiperSmoothInput({
   label,
   icon,
   type = "text",
@@ -15,7 +25,6 @@ function Skiper56SmoothInput({
   onChange,
   required = false,
   minLength,
-  isDevouring = false,
 }: {
   label: string;
   icon: React.ReactNode;
@@ -24,22 +33,124 @@ function Skiper56SmoothInput({
   onChange: (val: string) => void;
   required?: boolean;
   minLength?: number;
-  isDevouring?: boolean;
 }) {
   const [isFocused, setIsFocused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const textContainerRef = useRef<HTMLDivElement>(null);
-  const [caretOffset, setCaretOffset] = useState(0);
+  const measureRef = useRef<HTMLSpanElement>(null);
+
+  const caretX = useMotionValue(0);
+  const caretOpacity = useMotionValue(0);
+  const prefersReducedMotion = useReducedMotion();
+
+  const springCaretX = useSpring(
+    caretX,
+    prefersReducedMotion
+      ? { stiffness: 10000, damping: 100, mass: 0.1 }
+      : { stiffness: 500, damping: 30, mass: 0.5 }
+  );
+
+  const syncMeasureSpan = () => {
+    const input = inputRef.current;
+    const measureSpan = measureRef.current;
+    if (!input || !measureSpan) return;
+
+    const styles = window.getComputedStyle(input);
+    measureSpan.style.font = `${styles.fontStyle} ${styles.fontWeight} ${styles.fontSize} ${styles.fontFamily}`;
+    measureSpan.style.letterSpacing = styles.letterSpacing;
+  };
+
+  const measurePrefixWidth = (text: string) => {
+    const input = inputRef.current;
+    const measureSpan = measureRef.current;
+    if (!input || !measureSpan) return null;
+
+    syncMeasureSpan();
+    measureSpan.textContent = text;
+    const paddingLeft = parseFloat(window.getComputedStyle(input).paddingLeft) || 0;
+    return text.length > 0 ? measureSpan.offsetWidth + paddingLeft : paddingLeft;
+  };
+
+  const updateCaretFromInput = (target: HTMLInputElement) => {
+    const selectionStart = target.selectionStart ?? 0;
+    const selectionEnd = target.selectionEnd ?? 0;
+    const hasSelection = selectionStart !== selectionEnd;
+    const caretIndex =
+      selectionStart === selectionEnd
+        ? selectionStart
+        : target.selectionDirection === "backward"
+        ? selectionStart
+        : selectionEnd;
+
+    const isPassword = type === "password";
+    const textBeforeCaret = isPassword
+      ? PASSWORD_CHAR.repeat(caretIndex)
+      : target.value.slice(0, caretIndex);
+
+    const absoluteWidth = measurePrefixWidth(textBeforeCaret);
+    if (absoluteWidth === null) return;
+
+    const styles = window.getComputedStyle(target);
+    const paddingLeft = parseFloat(styles.paddingLeft) || 0;
+    const paddingRight = parseFloat(styles.paddingRight) || 0;
+    const caretPosition = absoluteWidth - target.scrollLeft;
+    const minX = paddingLeft - 1;
+    const maxX = target.clientWidth - paddingRight;
+    const isCaretVisible = caretPosition >= minX && caretPosition <= maxX + 1;
+
+    caretX.set(Math.min(caretPosition, maxX));
+
+    if (!isCaretVisible || hasSelection) {
+      caretOpacity.set(0);
+      return;
+    }
+
+    caretOpacity.set(1);
+  };
+
+  const updateCaretRef = useRef(updateCaretFromInput);
+  updateCaretRef.current = updateCaretFromInput;
 
   useEffect(() => {
-    if (!textContainerRef.current) return;
-    const textSpan = textContainerRef.current.querySelector(".character-trail") as HTMLElement;
-    if (textSpan) {
-      setCaretOffset(textSpan.offsetWidth);
-    } else {
-      setCaretOffset(0);
+    const input = inputRef.current;
+    if (input && document.activeElement === input) {
+      updateCaretRef.current(input);
     }
-  }, [value]);
+  }, [value, type]);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    const container = containerRef.current;
+    if (!input || !container) return;
+
+    const updateCaretIfFocused = () => {
+      if (document.activeElement === input) {
+        updateCaretRef.current(input);
+      }
+    };
+
+    const handleSelectionChange = () => {
+      if (document.activeElement !== input) return;
+      requestAnimationFrame(() => {
+        if (document.activeElement === input) {
+          updateCaretRef.current(input);
+        }
+      });
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    document.fonts?.ready?.then(updateCaretIfFocused);
+    input.addEventListener("scroll", updateCaretIfFocused);
+
+    const resizeObserver = new ResizeObserver(updateCaretIfFocused);
+    resizeObserver.observe(container);
+
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      input.removeEventListener("scroll", updateCaretIfFocused);
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   const hasValue = value.length > 0;
 
@@ -55,19 +166,23 @@ function Skiper56SmoothInput({
             : "0 0 0 1px rgba(229, 231, 235, 1)",
         }}
         transition={{ duration: 0.2 }}
-        className="absolute inset-0 rounded-2xl bg-white"
+        className="absolute inset-0 rounded-2xl bg-white pointer-events-none"
       />
 
       <div className="relative flex items-center px-4 py-3.5 z-10">
         <span
-          className={`mr-3 transition-colors duration-200 shrink-0 ${
+          className={`mr-3 transition-colors duration-200 shrink-0 pointer-events-none ${
             isFocused ? "text-emerald-600" : "text-gray-400"
           }`}
         >
           {icon}
         </span>
 
-        <div ref={textContainerRef} className="relative flex-1 flex items-center h-5">
+        <div
+          ref={containerRef}
+          className="relative flex-1 grid grid-cols-1 items-center h-5 overflow-hidden"
+          style={{ caretColor: "transparent" }}
+        >
           <motion.label
             animate={{
               y: isFocused || hasValue ? -22 : 0,
@@ -75,7 +190,7 @@ function Skiper56SmoothInput({
               color: isFocused ? "#059669" : hasValue ? "#374151" : "#9ca3af",
             }}
             transition={{ type: "spring", stiffness: 450, damping: 28 }}
-            className="absolute left-0 origin-left select-none text-xs font-semibold pointer-events-none"
+            className="absolute left-0 origin-left select-none text-xs font-semibold pointer-events-none z-10"
           >
             {label}
           </motion.label>
@@ -86,48 +201,40 @@ function Skiper56SmoothInput({
             required={required}
             minLength={minLength}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-text"
+            onChange={(e) => {
+              onChange(e.target.value);
+              requestAnimationFrame(() => {
+                if (inputRef.current) updateCaretRef.current(inputRef.current);
+              });
+            }}
+            onFocus={(e) => {
+              setIsFocused(true);
+              updateCaretRef.current(e.target);
+            }}
+            onBlur={() => {
+              setIsFocused(false);
+              caretOpacity.set(0);
+            }}
+            className="col-start-1 col-end-2 row-start-1 row-end-2 w-full bg-transparent outline-none text-xs sm:text-sm font-medium text-gray-900 caret-transparent selection:bg-emerald-100 selection:text-emerald-900"
           />
 
-          <div className="relative flex items-center font-mono text-xs font-semibold text-gray-900 select-none pointer-events-none overflow-visible">
-            <AnimatePresence>
-              {!isDevouring && value.length > 0 && (
-                <motion.span
-                  initial={{ opacity: 1 }}
-                  exit={{ y: 22, opacity: 0, scale: 0.7 }}
-                  transition={{ duration: 0.35, ease: "easeIn" }}
-                  className="character-trail inline-block whitespace-pre"
-                >
-                  {type === "password" ? "•".repeat(value.length) : value}
-                </motion.span>
-              )}
-            </AnimatePresence>
+          <span
+            ref={measureRef}
+            aria-hidden
+            className="pointer-events-none invisible absolute top-0 left-0 whitespace-pre"
+          />
 
-            {isFocused && !isDevouring && (
-              <motion.span
-                animate={{
-                  x: caretOffset,
-                  opacity: [1, 0, 1],
-                }}
-                transition={{
-                  x: { type: "spring", stiffness: 500, damping: 30 },
-                  opacity: { repeat: Infinity, duration: 0.85, ease: "easeInOut" },
-                }}
-                className="absolute left-0 w-[2.5px] h-4 bg-emerald-600 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.9)]"
-              />
-            )}
-          </div>
+          <motion.div
+            className="pointer-events-none col-start-1 col-end-2 row-start-1 row-end-2 h-4 w-[2.5px] rounded-full bg-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.9)] self-center"
+            style={{ x: springCaretX, opacity: caretOpacity }}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-// Skiper 106: Devouring Details Button
-function Skiper106DevouringButton({
+function DevouringButton({
   loading,
   isDevouring,
   textToDevour,
@@ -138,19 +245,7 @@ function Skiper106DevouringButton({
   textToDevour: string;
   onDevourAndSubmit: () => void;
 }) {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [coords, setCoords] = useState({ x: 0, y: 0 });
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    setCoords({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
-  };
-
-  const letters = textToDevour.slice(0, 20).split("");
+  const letters = textToDevour.slice(0, 18).split("");
 
   return (
     <div className="relative w-full">
@@ -169,8 +264,8 @@ function Skiper106DevouringButton({
                   rotate: [0, (i % 2 === 0 ? 1 : -1) * 35],
                 }}
                 transition={{
-                  duration: 0.6,
-                  delay: i * 0.025,
+                  duration: 0.55,
+                  delay: i * 0.02,
                   ease: "easeInOut",
                 }}
                 className="inline-block text-[11px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1 rounded shadow-xs"
@@ -183,24 +278,15 @@ function Skiper106DevouringButton({
       </AnimatePresence>
 
       <motion.button
-        ref={btnRef}
         type="button"
-        onMouseMove={handleMouseMove}
         onClick={onDevourAndSubmit}
         disabled={loading || isDevouring}
         animate={{
           scale: isDevouring ? [1, 0.96, 1.02, 1] : 1,
         }}
-        transition={{ duration: 0.4 }}
-        className="relative overflow-hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl text-xs transition-all duration-300 shadow-md hover:shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+        transition={{ duration: 0.3 }}
+        className="relative overflow-hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-2xl text-xs transition-all duration-200 shadow-md hover:shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
       >
-        <span
-          className="pointer-events-none absolute -inset-px opacity-0 hover:opacity-100 transition-opacity duration-300"
-          style={{
-            background: `radial-gradient(140px circle at ${coords.x}px ${coords.y}px, rgba(255,255,255,0.35), transparent 80%)`,
-          }}
-        />
-
         {loading || isDevouring ? (
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -219,6 +305,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [devourText, setDevourText] = useState("");
   const [loading, setLoading] = useState(false);
   const [isDevouring, setIsDevouring] = useState(false);
   const [error, setError] = useState("");
@@ -234,25 +321,25 @@ export default function RegisterPage() {
       return;
     }
 
-    // Preserve the credentials for API dispatch
+    // 1. Capture payload
     const payload = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password,
     };
 
-    // Run the devour animation
-    setIsDevouring(true);
-    await new Promise((resolve) => setTimeout(resolve, 650));
-
-    // Permanently wipe the input fields
+    // 2. Set particle text and immediately wipe input fields with 0 delay
+    setDevourText(name);
     setName("");
     setEmail("");
     setPassword("");
-    setIsDevouring(false);
-
-    setLoading(true);
+    setIsDevouring(true);
     setError("");
+
+    // 3. Brief animation duration before network call
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    setIsDevouring(false);
+    setLoading(true);
 
     try {
       const res = await fetch("/api/auth/register", {
@@ -301,41 +388,38 @@ export default function RegisterPage() {
           )}
 
           <div className="space-y-4">
-            <Skiper56SmoothInput
+            <SkiperSmoothInput
               label="Full Name"
               icon={<User className="w-4 h-4" />}
               value={name}
               onChange={setName}
-              isDevouring={isDevouring}
               required
             />
 
-            <Skiper56SmoothInput
+            <SkiperSmoothInput
               label="Email Address"
               type="email"
               icon={<Mail className="w-4 h-4" />}
               value={email}
               onChange={setEmail}
-              isDevouring={isDevouring}
               required
             />
 
-            <Skiper56SmoothInput
+            <SkiperSmoothInput
               label="Password (min 6 characters)"
               type="password"
               minLength={6}
               icon={<Lock className="w-4 h-4" />}
               value={password}
               onChange={setPassword}
-              isDevouring={isDevouring}
               required
             />
 
             <div className="pt-2">
-              <Skiper106DevouringButton
+              <DevouringButton
                 loading={loading}
                 isDevouring={isDevouring}
-                textToDevour={name || email || "Details"}
+                textToDevour={devourText || name || "Details"}
                 onDevourAndSubmit={executeRegister}
               />
             </div>
