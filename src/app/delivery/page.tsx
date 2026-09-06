@@ -56,11 +56,11 @@ function RiderNavigationModal({
   const customerPhone = order.customerPhone || order.deliveryAddress?.phone || null;
   const address = order.deliveryAddress;
 
-  // 1. Resolve Customer Destination Coordinates strictly within Tamil Nadu bounds
+  // 1. Direct use of customer pinpointed coordinates
   useEffect(() => {
     if (!address) return;
 
-    // Check if customer provided valid South India / Tamil Nadu coordinates
+    // Check if customer provided coordinates
     const hasCoordinates =
       typeof address.lat === "number" &&
       typeof address.lng === "number" &&
@@ -74,6 +74,7 @@ function RiderNavigationModal({
       return;
     }
 
+    // Geocoding fallback strictly within Tamil Nadu bounds
     async function resolveCoords() {
       const cleanCity = address?.city?.trim() || "Nagapattinam";
       const cleanPincode = address?.pincode?.trim() || "";
@@ -99,7 +100,6 @@ function RiderNavigationModal({
             const parsedLat = parseFloat(nData[0].lat);
             const parsedLon = parseFloat(nData[0].lon);
 
-            // Bounding box constraint to Tamil Nadu / South India
             if (parsedLat >= 8.0 && parsedLat <= 14.0 && parsedLon >= 76.0 && parsedLon <= 81.0) {
               setCustomerCoords({ lat: parsedLat, lng: parsedLon });
               return;
@@ -110,7 +110,6 @@ function RiderNavigationModal({
         }
       }
 
-      // Safe local default in Nagapattinam rather than continent-wide defaults
       setCustomerCoords({ lat: 10.7656, lng: 79.8428 });
     }
 
@@ -286,6 +285,13 @@ function RiderNavigationModal({
     }
   }, [riderCoords.lat, riderCoords.lng, customerCoords]);
 
+  const hasGPSPin = Boolean(
+    address?.lat &&
+    address?.lng &&
+    typeof address.lat === "number" &&
+    typeof address.lng === "number"
+  );
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-[32px] max-w-sm sm:max-w-md w-full h-[90vh] shadow-2xl border border-gray-100 flex flex-col overflow-hidden relative font-sans">
@@ -361,12 +367,12 @@ function RiderNavigationModal({
               </div>
             </div>
 
-            {address?.lat && address?.lng ? (
-              <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1">
+            {hasGPSPin ? (
+              <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1 border border-emerald-300">
                 <Crosshair className="w-3 h-3 text-emerald-600" /> GPS Doorstep
               </span>
             ) : (
-              <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md shrink-0">
+              <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md shrink-0 border border-gray-200">
                 Text Addr
               </span>
             )}

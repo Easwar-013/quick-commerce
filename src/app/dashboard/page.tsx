@@ -53,13 +53,10 @@ export interface AddressItem {
   lng?: number;
 }
 
-// Interactive Touch/Tap Map with Smart Fuzzy Geocoding, Real GPS & Reverse Geocoding
+// Interactive Touch/Tap Map with Address Search & Reverse Geocoding
 function LocationPickerMap({
   lat,
   lng,
-  street,
-  city,
-  pincode,
   onChange,
   onAddressDetected,
 }: {
@@ -74,7 +71,6 @@ function LocationPickerMap({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
-  const [locating, setLocating] = useState(false);
 
   // Reverse geocode coordinates back to address inputs
   const fetchAddressFromCoords = async (latitude: number, longitude: number) => {
@@ -188,114 +184,26 @@ function LocationPickerMap({
     }
   }, [lat, lng]);
 
-  const handleLocateMe = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    setLocating(true);
-
-    const applyCoords = (newLat: number, newLng: number, zoomLevel = 17) => {
-      onChange({ lat: newLat, lng: newLng });
-      if (markerRef.current && leafletMapRef.current) {
-        markerRef.current.setLatLng([newLat, newLng]);
-        leafletMapRef.current.setView([newLat, newLng], zoomLevel);
-      }
-    };
-
-    // Clean landmarks and common descriptor noise from street strings
-    const cleanStreet = (street || "")
-      .replace(/opp|opposite|near|behind|beside|adj|floor|flat|door\s*no|d\.no|h\.no/gi, " ")
-      .replace(/[,\-_#\/]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    const cleanCity = city?.trim() || "";
-    const cleanPincode = pincode?.trim() || "";
-
-    // 1. Query Photon Elasticsearch for fuzzy landmark and partial street matches
-    if (cleanStreet || cleanCity) {
-      const searchTerms = [
-        `${cleanStreet} ${cleanCity}`,
-        `${cleanStreet} ${cleanPincode}`,
-        `${cleanStreet}`,
-      ].filter((t) => t.trim().length > 3);
-
-      for (const term of searchTerms) {
-        try {
-          const photonRes = await fetch(
-            `https://photon.komoot.io/api/?q=${encodeURIComponent(term)}&limit=1`
-          );
-          const photonData = await photonRes.json();
-          if (photonData?.features && photonData.features.length > 0) {
-            const [lon, latCoord] = photonData.features[0].geometry.coordinates;
-            applyCoords(latCoord, lon, 17);
-            setLocating(false);
-            return;
-          }
-        } catch (err) {
-          console.warn("Photon search error:", err);
-        }
-      }
-    }
-
-    // 2. Query Nominatim structured street search
-    if (cleanStreet && cleanCity) {
-      try {
-        const nomRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(
-            cleanStreet
-          )}&city=${encodeURIComponent(cleanCity)}&postalcode=${encodeURIComponent(
-            cleanPincode
-          )}&country=India&format=json&limit=1`
-        );
-        const nomData = await nomRes.json();
-        if (nomData && nomData.length > 0) {
-          applyCoords(parseFloat(nomData[0].lat), parseFloat(nomData[0].lon), 17);
-          setLocating(false);
-          return;
-        }
-      } catch (err) {
-        console.warn("Nominatim search error:", err);
-      }
-    }
-
-    // 3. Fallback to hardware device GPS
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          applyCoords(pos.coords.latitude, pos.coords.longitude, 17);
-          fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude);
-          setLocating(false);
-        },
-        (err) => {
-          console.warn("GPS error:", err);
-          setLocating(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else {
-      setLocating(false);
-    }
-  };
-
   return (
-    <div className="relative w-full h-48 rounded-2xl overflow-hidden border border-gray-200 mt-2 shadow-inner">
+    <div className="relative w-full h-52 rounded-2xl overflow-hidden border border-gray-200 mt-2 shadow-inner">
       <div ref={mapContainerRef} className="w-full h-full" />
-      <div className="absolute top-2.5 left-2.5 z-[1000] bg-black/65 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-lg pointer-events-none shadow-sm flex items-center gap-1.5">
-        <MapPin className="w-3 h-3 text-emerald-400" />
-        Tap map or drag pin to your doorstep
+      
+      {/* Top Helper Badge */}
+      <div className="absolute top-2.5 left-2.5 z-[1000] bg-black/75 backdrop-blur-xs text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl pointer-events-none shadow-md flex items-center gap-1.5 border border-white/10">
+        <Crosshair className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
+        <span>Tap anywhere or drag the pin to your exact delivery location</span>
       </div>
-      <button
-        type="button"
-        onClick={handleLocateMe}
-        disabled={locating}
-        className="absolute bottom-2.5 right-2.5 z-[1000] bg-white text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl shadow-md border border-gray-200 flex items-center gap-1.5 active:scale-95 transition cursor-pointer hover:bg-emerald-50"
-      >
-        {locating ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-        ) : (
-          <Crosshair className="w-3.5 h-3.5 text-emerald-600" />
-        )}
-        <span>{locating ? "Pinpointing..." : "Locate Address"}</span>
-      </button>
+
+      {/* Bottom Floating Tip */}
+      <div className="absolute bottom-2.5 inset-x-3 z-[1000] bg-white/90 backdrop-blur-md text-emerald-800 text-[10px] font-bold py-1 px-2.5 rounded-xl border border-emerald-200 shadow-sm flex items-center justify-between pointer-events-none">
+        <span className="flex items-center gap-1">
+          <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+          Move the pin directly over your house or building
+        </span>
+        <span className="font-mono text-[9px] text-gray-500 font-normal">
+          {lat.toFixed(4)}, {lng.toFixed(4)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -453,6 +361,7 @@ function RealtimeTrackingCanvas({
     };
   }, []);
 
+  // Update routing and markers when positions change
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -504,13 +413,23 @@ function LiveOrderMapModal({
     const addr = currentOrder.deliveryAddress;
     if (!addr) return;
 
-    if (addr.lat && addr.lng && typeof addr.lat === "number" && typeof addr.lng === "number") {
+    // Prioritize direct coordinates saved by the customer
+    if (
+      addr.lat &&
+      addr.lng &&
+      typeof addr.lat === "number" &&
+      typeof addr.lng === "number" &&
+      addr.lat >= 8.0 &&
+      addr.lat <= 14.0 &&
+      addr.lng >= 76.0 &&
+      addr.lng <= 81.0
+    ) {
       setDestinationCoords({ lat: addr.lat, lng: addr.lng });
       return;
     }
 
     async function geocodeDestination() {
-      const cleanCity = addr.city?.trim() || "";
+      const cleanCity = addr.city?.trim() || "Nagapattinam";
       const cleanPincode = addr.pincode?.trim() || "";
       const cleanStreet = addr.street?.trim() || "";
 
@@ -520,15 +439,16 @@ function LiveOrderMapModal({
           : `${cleanStreet}, ${cleanCity}, Tamil Nadu, India`;
 
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=1`
         );
         const data = await res.json();
         if (data && data.length > 0) {
-          setDestinationCoords({
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon),
-          });
-          return;
+          const pLat = parseFloat(data[0].lat);
+          const pLon = parseFloat(data[0].lon);
+          if (pLat >= 8.0 && pLat <= 14.0 && pLon >= 76.0 && pLon <= 81.0) {
+            setDestinationCoords({ lat: pLat, lng: pLon });
+            return;
+          }
         }
       } catch (err) {
         console.warn("Geocoding address failed:", err);
@@ -1347,8 +1267,8 @@ function DashboardContent() {
 
                           {addr.lat && addr.lng && (
                             <div className="mt-2 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              <span>GPS Pinned ({addr.lat.toFixed(4)}, {addr.lng.toFixed(4)})</span>
+                              <Crosshair className="w-3 h-3" />
+                              <span>GPS Doorstep Pinned ({addr.lat.toFixed(4)}, {addr.lng.toFixed(4)})</span>
                             </div>
                           )}
                         </div>
@@ -1367,7 +1287,7 @@ function DashboardContent() {
                             {editingAddressId ? "Edit Delivery Location" : "Add Delivery Location"}
                           </h3>
                           <p className="text-[11px] text-gray-400 font-medium mt-0.5">
-                            Tap the map or click "Locate Address" to pinpoint your doorstep.
+                            Pinpoint your exact doorstep on the map below.
                           </p>
                         </div>
                         <button
@@ -1381,16 +1301,18 @@ function DashboardContent() {
                       <form onSubmit={handleSaveAddress} className="space-y-3.5">
                         {/* Interactive Touch Map */}
                         <div>
-                          <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1">
-                            Set Doorstep Location On Map
-                          </label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+                              Pinpoint Your Exact Location
+                            </label>
+                            <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              {pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}
+                            </span>
+                          </div>
                           <LocationPickerMap
                             lat={pickedCoords.lat}
                             lng={pickedCoords.lng}
-                            street={newStreet}
-                            city={newCity}
-                            pincode={newPincode}
-                            onChange={setPickedCoords}
+                            onChange={(coords) => setPickedCoords(coords)}
                             onAddressDetected={(detected) => {
                               if (detected.city && !newCity) setNewCity(detected.city);
                               if (detected.pincode && !newPincode) setNewPincode(detected.pincode);
