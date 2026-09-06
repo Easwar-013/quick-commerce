@@ -37,6 +37,8 @@ export interface IOrder extends Document {
     pincode: string;
     type: string;
     phone?: string;
+    lat?: number;
+    lng?: number;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -82,6 +84,8 @@ const OrderSchema = new Schema<IOrder>(
       pincode: { type: String, required: true },
       type: { type: String, default: "HOME" },
       phone: { type: String },
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
     },
   },
   { timestamps: true }

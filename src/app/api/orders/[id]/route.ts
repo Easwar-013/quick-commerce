@@ -42,6 +42,7 @@ export async function PATCH(
       packedByEmail,
       packedByName,
       riderLocation,
+      deliveryAddress,
     } = body;
 
     const updatePayload: Record<string, any> = {};
@@ -80,6 +81,10 @@ export async function PATCH(
         lng: riderLocation.lng,
         updatedAt: new Date(),
       };
+    }
+
+    if (deliveryAddress) {
+      updatePayload.deliveryAddress = deliveryAddress;
     }
 
     if (Object.keys(updatePayload).length === 0) {
