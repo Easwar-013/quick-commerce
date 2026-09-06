@@ -21,7 +21,6 @@ import {
   Crosshair,
   ArrowLeft,
   MessageSquare,
-  Maximize2,
   X,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
@@ -57,70 +56,61 @@ function RiderNavigationModal({
   const customerPhone = order.customerPhone || order.deliveryAddress?.phone || null;
   const address = order.deliveryAddress;
 
-  // 1. Resolve Customer Destination Coordinates
+  // 1. Resolve Customer Destination Coordinates strictly within Tamil Nadu bounds
   useEffect(() => {
     if (!address) return;
 
-    // Direct Rooftop accuracy if customer tapped or saved map coordinates
-    if (
-      address.lat &&
-      address.lng &&
+    // Check if customer provided valid South India / Tamil Nadu coordinates
+    const hasCoordinates =
       typeof address.lat === "number" &&
-      typeof address.lng === "number"
-    ) {
+      typeof address.lng === "number" &&
+      address.lat >= 8.0 &&
+      address.lat <= 14.0 &&
+      address.lng >= 76.0 &&
+      address.lng <= 81.0;
+
+    if (hasCoordinates) {
       setCustomerCoords({ lat: address.lat, lng: address.lng });
       return;
     }
 
-    // Geocoding fallback with Photon and Nominatim for text-only addresses
     async function resolveCoords() {
-      const cleanStreet = (address.street || "")
+      const cleanCity = address?.city?.trim() || "Nagapattinam";
+      const cleanPincode = address?.pincode?.trim() || "";
+      const cleanStreet = (address?.street || "")
         .replace(/opp|opposite|near|behind|beside|adj|floor|flat|door\s*no|d\.no|h\.no/gi, " ")
         .replace(/[,\-_#\/]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      const cleanCity = address.city?.trim() || "";
-      const cleanPincode = address.pincode?.trim() || "";
 
-      // Photon fuzzy match
-      if (cleanStreet || cleanCity) {
+      const queries = [
+        `${cleanStreet}, ${cleanCity}, ${cleanPincode}, Tamil Nadu, India`,
+        `${cleanCity}, ${cleanPincode}, Tamil Nadu, India`,
+        `${cleanCity}, Tamil Nadu, India`,
+      ].filter(Boolean);
+
+      for (const query of queries) {
         try {
-          const photonQuery = `${cleanStreet} ${cleanCity}`.trim();
-          const pRes = await fetch(
-            `https://photon.komoot.io/api/?q=${encodeURIComponent(photonQuery)}&limit=1`
+          const nRes = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=1`
           );
-          const pData = await pRes.json();
-          if (pData?.features && pData.features.length > 0) {
-            const [lon, latCoord] = pData.features[0].geometry.coordinates;
-            setCustomerCoords({ lat: latCoord, lng: lon });
-            return;
+          const nData = await nRes.json();
+          if (nData && nData.length > 0) {
+            const parsedLat = parseFloat(nData[0].lat);
+            const parsedLon = parseFloat(nData[0].lon);
+
+            // Bounding box constraint to Tamil Nadu / South India
+            if (parsedLat >= 8.0 && parsedLat <= 14.0 && parsedLon >= 76.0 && parsedLon <= 81.0) {
+              setCustomerCoords({ lat: parsedLat, lng: parsedLon });
+              return;
+            }
           }
         } catch (err) {
-          console.warn("Photon fallback error:", err);
+          console.warn("Geocoding query failed:", err);
         }
       }
 
-      // Nominatim search
-      try {
-        const query = cleanPincode
-          ? `${cleanPincode}, ${cleanCity}, Tamil Nadu, India`
-          : `${cleanCity}, Tamil Nadu, India`;
-        const nRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
-        );
-        const nData = await nRes.json();
-        if (nData && nData.length > 0) {
-          setCustomerCoords({
-            lat: parseFloat(nData[0].lat),
-            lng: parseFloat(nData[0].lon),
-          });
-          return;
-        }
-      } catch (err) {
-        console.warn("Nominatim fallback error:", err);
-      }
-
-      // Default Tamil Nadu fallback
+      // Safe local default in Nagapattinam rather than continent-wide defaults
       setCustomerCoords({ lat: 10.7656, lng: 79.8428 });
     }
 
@@ -187,7 +177,7 @@ function RiderNavigationModal({
       });
       destMarkerRef.current = L.marker([customerCoords!.lat, customerCoords!.lng], { icon: destIcon }).addTo(map);
 
-      // Rider Pin (Purple Bike with Pulse)
+      // Rider Pin (Green Bike)
       const bikerIcon = L.divIcon({
         className: "rider-nav-pin",
         html: `
@@ -271,6 +261,10 @@ function RiderNavigationModal({
 
     if (riderMarkerRef.current && riderCoords.lat && riderCoords.lng) {
       riderMarkerRef.current.setLatLng([riderCoords.lat, riderCoords.lng]);
+    }
+
+    if (destMarkerRef.current && customerCoords.lat && customerCoords.lng) {
+      destMarkerRef.current.setLatLng([customerCoords.lat, customerCoords.lng]);
     }
 
     if (riderCoords.lat && riderCoords.lng && customerCoords.lat && customerCoords.lng) {
@@ -368,8 +362,8 @@ function RiderNavigationModal({
             </div>
 
             {address?.lat && address?.lng ? (
-              <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0">
-                GPS Doorstep
+              <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1">
+                <Crosshair className="w-3 h-3 text-emerald-600" /> GPS Doorstep
               </span>
             ) : (
               <span className="text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md shrink-0">

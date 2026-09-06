@@ -16,6 +16,7 @@ import {
   Tag,
   X,
   ShoppingBag,
+  Crosshair,
 } from "lucide-react";
 import { useCartStore } from "@/store/useCartStore";
 import { formatPrice } from "@/lib/utils";
@@ -24,11 +25,14 @@ import DesktopHeader from "@/components/desktop/DesktopHeader";
 interface AddressItem {
   id: string;
   type: "HOME" | "WORK" | "OTHER";
+  contactName?: string;
   street: string;
   city: string;
   pincode: string;
   phone?: string;
   isDefault: boolean;
+  lat?: number;
+  lng?: number;
 }
 
 export default function CartPage() {
@@ -125,7 +129,7 @@ export default function CartPage() {
     try {
       const orderPayload = {
         userEmail: session.user.email,
-        customerName: session.user.name || "Customer",
+        customerName: selectedAddr.contactName || session.user.name || "Customer",
         customerPhone: selectedAddr.phone || (session.user as any)?.phone || "",
         items: items.map((item) => ({
           productId: item._id,
@@ -146,6 +150,8 @@ export default function CartPage() {
           pincode: selectedAddr.pincode,
           type: selectedAddr.type,
           phone: selectedAddr.phone || (session.user as any)?.phone || "",
+          lat: selectedAddr.lat,
+          lng: selectedAddr.lng,
         },
       };
 
@@ -332,6 +338,11 @@ export default function CartPage() {
                             {addr.isDefault && (
                               <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded font-normal border border-emerald-200">
                                 Default
+                              </span>
+                            )}
+                            {addr.lat && addr.lng && (
+                              <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold border border-emerald-300 inline-flex items-center gap-0.5">
+                                <Crosshair className="w-2.5 h-2.5" /> Doorstep Pinned
                               </span>
                             )}
                           </div>
