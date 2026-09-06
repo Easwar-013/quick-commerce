@@ -45,22 +45,47 @@ function RiderNavigationModal({
   const destMarkerRef = useRef<any>(null);
   const routeLineRef = useRef<any>(null);
 
+  const [currentOrder, setCurrentOrder] = useState(order);
   const [customerCoords, setCustomerCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [riderCoords, setRiderCoords] = useState<{ lat: number; lng: number }>({
-    lat: order.riderLocation?.lat || 10.7656,
-    lng: order.riderLocation?.lng || 79.8428,
+    lat: currentOrder.riderLocation?.lat || 10.7656,
+    lng: currentOrder.riderLocation?.lng || 79.8428,
   });
   const [routeStats, setRouteStats] = useState({ distanceKm: "Calculating...", durationMins: "Calculating..." });
 
-  const customerName = order.customerName || order.userEmail?.split("@")[0] || "Customer";
-  const customerPhone = order.customerPhone || order.deliveryAddress?.phone || null;
-  const address = order.deliveryAddress;
+  const customerName = currentOrder.customerName || currentOrder.userEmail?.split("@")[0] || "Customer";
+  const customerPhone = currentOrder.customerPhone || currentOrder.deliveryAddress?.phone || null;
+  const address = currentOrder.deliveryAddress;
 
-  // 1. Direct use of customer pinpointed coordinates
+  // Poll order updates every 2 seconds to keep rider location and state fully synced
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        const res = await fetch(`/api/orders/${order._id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.data) {
+          setCurrentOrder(data.data);
+          if (data.data.riderLocation?.lat && data.data.riderLocation?.lng) {
+            setRiderCoords({
+              lat: data.data.riderLocation.lat,
+              lng: data.data.riderLocation.lng,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to poll navigation order:", err);
+      }
+    };
+
+    const interval = setInterval(fetchLatest, 2000);
+    return () => clearInterval(interval);
+  }, [order._id]);
+
+  // 1. Resolve Customer Destination Coordinates strictly within Tamil Nadu bounds
   useEffect(() => {
     if (!address) return;
 
-    // Check if customer provided coordinates
     const hasCoordinates =
       typeof address.lat === "number" &&
       typeof address.lng === "number" &&
@@ -74,7 +99,6 @@ function RiderNavigationModal({
       return;
     }
 
-    // Geocoding fallback strictly within Tamil Nadu bounds
     async function resolveCoords() {
       const cleanCity = address?.city?.trim() || "Nagapattinam";
       const cleanPincode = address?.pincode?.trim() || "";
@@ -116,23 +140,34 @@ function RiderNavigationModal({
     resolveCoords();
   }, [address?.lat, address?.lng, address?.street, address?.city, address?.pincode]);
 
-  // 2. Track Live Rider GPS inside navigation
+  // 2. Track Live Rider Device GPS and push to server
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
 
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setRiderCoords({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
+      async (pos) => {
+        const newLat = pos.coords.latitude;
+        const newLng = pos.coords.longitude;
+        setRiderCoords({ lat: newLat, lng: newLng });
+
+        try {
+          await fetch(`/api/orders/${order._id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              riderLocation: { lat: newLat, lng: newLng },
+            }),
+          });
+        } catch (err) {
+          console.warn("Failed to update rider location in navigation modal:", err);
+        }
       },
       (err) => console.warn("Rider nav GPS error:", err.message),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [order._id]);
 
   // 3. Initialize Leaflet Map
   useEffect(() => {
