@@ -18,6 +18,7 @@ import {
   Navigation,
   User,
   Radio,
+  Crosshair,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
@@ -212,6 +213,21 @@ export default function DeliveryAppPage() {
     }
   };
 
+  // Helper to generate Google Maps Navigation URL prioritising coordinates over text
+  const getDirectionsUrl = (address: any) => {
+    if (
+      address?.lat &&
+      address?.lng &&
+      typeof address.lat === "number" &&
+      typeof address.lng === "number"
+    ) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${address.lat},${address.lng}`;
+    }
+
+    const query = `${address?.street || ""}, ${address?.city || ""} ${address?.pincode || ""}`.trim();
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
+  };
+
   const availableOrders = orders.filter(
     (o) => o.status === "PACKING" && (!o.assignedRiderEmail || o.assignedRiderEmail === "")
   );
@@ -285,11 +301,14 @@ export default function DeliveryAppPage() {
           ) : (
             <div className="space-y-4">
               {myActiveOrders.map((order) => {
-                const addressQuery = encodeURIComponent(
-                  `${order.deliveryAddress?.street || ""}, ${order.deliveryAddress?.city || ""} ${
-                    order.deliveryAddress?.pincode || ""
-                  }`
+                const hasCoordinates = Boolean(
+                  order.deliveryAddress?.lat &&
+                  order.deliveryAddress?.lng &&
+                  typeof order.deliveryAddress.lat === "number" &&
+                  typeof order.deliveryAddress.lng === "number"
                 );
+
+                const navigationUrl = getDirectionsUrl(order.deliveryAddress);
 
                 const customerDisplayName =
                   order.customerName || order.userEmail?.split("@")[0] || "Customer";
@@ -336,23 +355,46 @@ export default function DeliveryAppPage() {
                           <div className="flex items-start gap-2 pt-0.5">
                             <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                             <div>
-                              <span className="font-black text-gray-900 uppercase tracking-wider text-[10px] bg-white px-1.5 py-0.5 rounded border border-gray-200 inline-block mb-1">
-                                {order.deliveryAddress?.type || "HOME"}
-                              </span>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-black text-gray-900 uppercase tracking-wider text-[10px] bg-white px-1.5 py-0.5 rounded border border-gray-200 inline-block">
+                                  {order.deliveryAddress?.type || "HOME"}
+                                </span>
+
+                                {/* Badge specifying whether location is GPS pinned or text resolution */}
+                                {hasCoordinates ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded">
+                                    <Crosshair className="w-3 h-3 text-emerald-600" />
+                                    GPS Doorstep Pinned
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                                    Text Address
+                                  </span>
+                                )}
+                              </div>
+
                               <p className="text-gray-900 font-bold leading-relaxed">
                                 {order.deliveryAddress?.street}, {order.deliveryAddress?.city} - {order.deliveryAddress?.pincode}
                               </p>
+
+                              {hasCoordinates && (
+                                <p className="text-[10px] font-mono text-emerald-700 mt-0.5">
+                                  Coords: {order.deliveryAddress.lat.toFixed(5)}, {order.deliveryAddress.lng.toFixed(5)}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
 
                         <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${addressQuery}`}
+                          href={navigationUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs transition-all active:scale-95"
+                          title={hasCoordinates ? "Navigate to Pinned Doorstep" : "Navigate to Street Address"}
                         >
-                          <Navigation className="w-3.5 h-3.5" /> Navigate
+                          <Navigation className="w-3.5 h-3.5" />
+                          <span>{hasCoordinates ? "GPS Nav" : "Navigate"}</span>
                         </a>
                       </div>
 
@@ -418,6 +460,13 @@ export default function DeliveryAppPage() {
           ) : (
             <div className="space-y-4">
               {availableOrders.map((order) => {
+                const hasCoordinates = Boolean(
+                  order.deliveryAddress?.lat &&
+                  order.deliveryAddress?.lng &&
+                  typeof order.deliveryAddress.lat === "number" &&
+                  typeof order.deliveryAddress.lng === "number"
+                );
+
                 const customerDisplayName =
                   order.customerName || order.userEmail?.split("@")[0] || "Customer";
                 const customerPhoneNum =
@@ -448,6 +497,11 @@ export default function DeliveryAppPage() {
                         {customerPhoneNum && (
                           <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200 text-gray-700">
                             <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {customerPhoneNum}
+                          </span>
+                        )}
+                        {hasCoordinates && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            <Crosshair className="w-3 h-3 text-emerald-600" /> GPS Doorstep
                           </span>
                         )}
                       </div>

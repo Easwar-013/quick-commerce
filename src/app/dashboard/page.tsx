@@ -37,6 +37,7 @@ import {
   Pencil,
   Building2,
   Hash,
+  Crosshair,
 } from "lucide-react";
 
 export interface AddressItem {
@@ -48,6 +49,255 @@ export interface AddressItem {
   city: string;
   pincode: string;
   isDefault: boolean;
+  lat?: number;
+  lng?: number;
+}
+
+// Interactive Touch/Tap Map with Smart Fuzzy Geocoding, Real GPS & Reverse Geocoding
+function LocationPickerMap({
+  lat,
+  lng,
+  street,
+  city,
+  pincode,
+  onChange,
+  onAddressDetected,
+}: {
+  lat: number;
+  lng: number;
+  street?: string;
+  city?: string;
+  pincode?: string;
+  onChange: (coords: { lat: number; lng: number }) => void;
+  onAddressDetected?: (addr: { street?: string; city?: string; pincode?: string }) => void;
+}) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const leafletMapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const [locating, setLocating] = useState(false);
+
+  // Reverse geocode coordinates back to address inputs
+  const fetchAddressFromCoords = async (latitude: number, longitude: number) => {
+    if (!onAddressDetected) return;
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+      );
+      const data = await res.json();
+      if (data?.address) {
+        const detectedCity =
+          data.address.city ||
+          data.address.town ||
+          data.address.village ||
+          data.address.suburb ||
+          "";
+        const detectedPincode = data.address.postcode || "";
+        const detectedStreet = [
+          data.address.road,
+          data.address.neighbourhood,
+          data.address.residential,
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        onAddressDetected({
+          street: detectedStreet || undefined,
+          city: detectedCity || undefined,
+          pincode: detectedPincode || undefined,
+        });
+      }
+    } catch (err) {
+      console.warn("Reverse geocode failed:", err);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initPicker() {
+      if (!mapContainerRef.current || leafletMapRef.current) return;
+      const L = (await import("leaflet")).default;
+      await import("leaflet/dist/leaflet.css");
+
+      if (!isMounted || !mapContainerRef.current) return;
+
+      const map = L.map(mapContainerRef.current, {
+        center: [lat, lng],
+        zoom: 16,
+        zoomControl: false,
+      });
+
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(map);
+
+      const pinIcon = L.divIcon({
+        className: "picker-pin",
+        html: `
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: grab;">
+            <div style="width: 36px; height: 36px; background: #059669; border-radius: 12px 12px 2px 12px; transform: rotate(45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px rgba(5,150,105,0.45); border: 2.5px solid #ffffff;">
+              <svg style="transform: rotate(-45deg); width: 18px; height: 18px; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div style="width: 8px; height: 8px; background: #064e3b; border-radius: 50%; margin-top: 4px; opacity: 0.4;"></div>
+          </div>
+        `,
+        iconSize: [36, 46],
+        iconAnchor: [18, 42],
+      });
+
+      const marker = L.marker([lat, lng], { icon: pinIcon, draggable: true }).addTo(map);
+      markerRef.current = marker;
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        onChange({ lat: pos.lat, lng: pos.lng });
+        fetchAddressFromCoords(pos.lat, pos.lng);
+      });
+
+      map.on("click", (e: any) => {
+        marker.setLatLng(e.latlng);
+        onChange({ lat: e.latlng.lat, lng: e.latlng.lng });
+        fetchAddressFromCoords(e.latlng.lat, e.latlng.lng);
+      });
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 250);
+
+      leafletMapRef.current = map;
+    }
+
+    initPicker();
+
+    return () => {
+      isMounted = false;
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (markerRef.current && leafletMapRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+      leafletMapRef.current.setView([lat, lng], leafletMapRef.current.getZoom() || 16);
+    }
+  }, [lat, lng]);
+
+  const handleLocateMe = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setLocating(true);
+
+    const applyCoords = (newLat: number, newLng: number, zoomLevel = 17) => {
+      onChange({ lat: newLat, lng: newLng });
+      if (markerRef.current && leafletMapRef.current) {
+        markerRef.current.setLatLng([newLat, newLng]);
+        leafletMapRef.current.setView([newLat, newLng], zoomLevel);
+      }
+    };
+
+    // Clean landmarks and common descriptor noise from street strings
+    const cleanStreet = (street || "")
+      .replace(/opp|opposite|near|behind|beside|adj|floor|flat|door\s*no|d\.no|h\.no/gi, " ")
+      .replace(/[,\-_#\/]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const cleanCity = city?.trim() || "";
+    const cleanPincode = pincode?.trim() || "";
+
+    // 1. Query Photon Elasticsearch for fuzzy landmark and partial street matches
+    if (cleanStreet || cleanCity) {
+      const searchTerms = [
+        `${cleanStreet} ${cleanCity}`,
+        `${cleanStreet} ${cleanPincode}`,
+        `${cleanStreet}`,
+      ].filter((t) => t.trim().length > 3);
+
+      for (const term of searchTerms) {
+        try {
+          const photonRes = await fetch(
+            `https://photon.komoot.io/api/?q=${encodeURIComponent(term)}&limit=1`
+          );
+          const photonData = await photonRes.json();
+          if (photonData?.features && photonData.features.length > 0) {
+            const [lon, latCoord] = photonData.features[0].geometry.coordinates;
+            applyCoords(latCoord, lon, 17);
+            setLocating(false);
+            return;
+          }
+        } catch (err) {
+          console.warn("Photon search error:", err);
+        }
+      }
+    }
+
+    // 2. Query Nominatim structured street search
+    if (cleanStreet && cleanCity) {
+      try {
+        const nomRes = await fetch(
+          `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(
+            cleanStreet
+          )}&city=${encodeURIComponent(cleanCity)}&postalcode=${encodeURIComponent(
+            cleanPincode
+          )}&country=India&format=json&limit=1`
+        );
+        const nomData = await nomRes.json();
+        if (nomData && nomData.length > 0) {
+          applyCoords(parseFloat(nomData[0].lat), parseFloat(nomData[0].lon), 17);
+          setLocating(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Nominatim search error:", err);
+      }
+    }
+
+    // 3. Fallback to hardware device GPS
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          applyCoords(pos.coords.latitude, pos.coords.longitude, 17);
+          fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude);
+          setLocating(false);
+        },
+        (err) => {
+          console.warn("GPS error:", err);
+          setLocating(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      setLocating(false);
+    }
+  };
+
+  return (
+    <div className="relative w-full h-48 rounded-2xl overflow-hidden border border-gray-200 mt-2 shadow-inner">
+      <div ref={mapContainerRef} className="w-full h-full" />
+      <div className="absolute top-2.5 left-2.5 z-[1000] bg-black/65 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-lg pointer-events-none shadow-sm flex items-center gap-1.5">
+        <MapPin className="w-3 h-3 text-emerald-400" />
+        Tap map or drag pin to your doorstep
+      </div>
+      <button
+        type="button"
+        onClick={handleLocateMe}
+        disabled={locating}
+        className="absolute bottom-2.5 right-2.5 z-[1000] bg-white text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl shadow-md border border-gray-200 flex items-center gap-1.5 active:scale-95 transition cursor-pointer hover:bg-emerald-50"
+      >
+        {locating ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+        ) : (
+          <Crosshair className="w-3.5 h-3.5 text-emerald-600" />
+        )}
+        <span>{locating ? "Pinpointing..." : "Locate Address"}</span>
+      </button>
+    </div>
+  );
 }
 
 // In-app Real-time Geospatial Map Canvas with Road-Snapping Routing & Custom Biker Marker
@@ -57,16 +307,19 @@ function RealtimeTrackingCanvas({
   destLng,
   riderName,
   onRouteStats,
+  onDestinationChange,
 }: {
   riderLocation: { lat: number; lng: number };
   destLat: number;
   destLng: number;
   riderName?: string;
   onRouteStats?: (stats: { distanceKm: string; durationMins: string }) => void;
+  onDestinationChange?: (coords: { lat: number; lng: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const riderMarkerRef = useRef<any>(null);
+  const destMarkerRef = useRef<any>(null);
   const routeLineRef = useRef<any>(null);
 
   useEffect(() => {
@@ -85,17 +338,16 @@ function RealtimeTrackingCanvas({
         zoomControl: false,
       });
 
-      // Free OpenStreetMap Tiles (Zero watermark, completely free)
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        attribution: '&copy; OpenStreetMap',
         maxZoom: 19,
       }).addTo(map);
 
-      // 1. Red Destination Home Pin
+      // Red Destination Home Pin
       const destIcon = L.divIcon({
         className: "dest-pin",
         html: `
-          <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
             <div style="width: 38px; height: 38px; background: #e11d48; border-radius: 12px 12px 2px 12px; transform: rotate(45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px rgba(225,29,72,0.4); border: 2.5px solid #ffffff;">
               <svg style="transform: rotate(-45deg); width: 18px; height: 18px; color: white;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -107,9 +359,20 @@ function RealtimeTrackingCanvas({
         iconSize: [38, 48],
         iconAnchor: [19, 44],
       });
-      L.marker([destLat, destLng], { icon: destIcon }).addTo(map);
+      const destMarker = L.marker([destLat, destLng], { icon: destIcon, draggable: true }).addTo(map);
+      destMarkerRef.current = destMarker;
 
-      // 2. Custom Quick-Commerce Delivery Rider Bike Pin
+      destMarker.on("dragend", () => {
+        const pos = destMarker.getLatLng();
+        if (onDestinationChange) onDestinationChange({ lat: pos.lat, lng: pos.lng });
+      });
+
+      map.on("click", (e: any) => {
+        destMarker.setLatLng(e.latlng);
+        if (onDestinationChange) onDestinationChange({ lat: e.latlng.lat, lng: e.latlng.lng });
+      });
+
+      // Quick-Commerce Delivery Rider Bike Pin
       const bikerIcon = L.divIcon({
         className: "custom-biker-icon",
         html: `
@@ -131,10 +394,10 @@ function RealtimeTrackingCanvas({
         iconSize: [44, 60],
         iconAnchor: [22, 30],
       });
-      const marker = L.marker([riderLocation.lat, riderLocation.lng], { icon: bikerIcon }).addTo(map);
-      riderMarkerRef.current = marker;
+      const riderMarker = L.marker([riderLocation.lat, riderLocation.lng], { icon: bikerIcon }).addTo(map);
+      riderMarkerRef.current = riderMarker;
 
-      // Fetch turn-by-turn road route via free OSRM
+      // Turn-by-turn road route via OSRM
       try {
         const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${riderLocation.lng},${riderLocation.lat};${destLng},${destLat}?overview=full&geometries=geojson`;
         const res = await fetch(osrmUrl);
@@ -159,8 +422,6 @@ function RealtimeTrackingCanvas({
             const durationMins = Math.max(1, Math.ceil(route.duration / 60)) + " mins";
             onRouteStats({ distanceKm, durationMins });
           }
-        } else {
-          throw new Error("No road route returned");
         }
       } catch {
         const polyline = L.polyline(
@@ -173,6 +434,10 @@ function RealtimeTrackingCanvas({
         routeLineRef.current = polyline;
         map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
       }
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 250);
 
       mapRef.current = map;
     }
@@ -188,13 +453,18 @@ function RealtimeTrackingCanvas({
     };
   }, []);
 
-  // Update live marker & road polyline when rider moves
   useEffect(() => {
-    if (!mapRef.current || !riderMarkerRef.current) return;
-    if (riderLocation?.lat && riderLocation?.lng) {
-      const newPos: [number, number] = [riderLocation.lat, riderLocation.lng];
-      riderMarkerRef.current.setLatLng(newPos);
+    if (!mapRef.current) return;
 
+    if (riderMarkerRef.current && riderLocation?.lat && riderLocation?.lng) {
+      riderMarkerRef.current.setLatLng([riderLocation.lat, riderLocation.lng]);
+    }
+
+    if (destMarkerRef.current && destLat && destLng) {
+      destMarkerRef.current.setLatLng([destLat, destLng]);
+    }
+
+    if (riderLocation?.lat && riderLocation?.lng && destLat && destLng) {
       fetch(
         `https://router.project-osrm.org/route/v1/driving/${riderLocation.lng},${riderLocation.lat};${destLng},${destLat}?overview=full&geometries=geojson`
       )
@@ -218,7 +488,7 @@ function RealtimeTrackingCanvas({
   return <div ref={containerRef} className="w-full h-full" />;
 }
 
-// Live Dispatch Modal
+// Live Dispatch Modal with Rooftop Coordinate Priority
 function LiveOrderMapModal({
   order,
   onClose,
@@ -230,24 +500,27 @@ function LiveOrderMapModal({
   const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [routeStats, setRouteStats] = useState({ distanceKm: "Calculating...", durationMins: "Calculating..." });
 
-  // Geocode destination address reliably
   useEffect(() => {
-    async function geocodeDestination() {
-      const addr = currentOrder.deliveryAddress;
-      if (!addr) return;
+    const addr = currentOrder.deliveryAddress;
+    if (!addr) return;
 
-      const cleanCity = addr.city?.trim() || "Nagapattinam";
+    if (addr.lat && addr.lng && typeof addr.lat === "number" && typeof addr.lng === "number") {
+      setDestinationCoords({ lat: addr.lat, lng: addr.lng });
+      return;
+    }
+
+    async function geocodeDestination() {
+      const cleanCity = addr.city?.trim() || "";
       const cleanPincode = addr.pincode?.trim() || "";
+      const cleanStreet = addr.street?.trim() || "";
 
       try {
         const query = cleanPincode
           ? `${cleanPincode}, ${cleanCity}, Tamil Nadu, India`
-          : `${cleanCity}, Tamil Nadu, India`;
+          : `${cleanStreet}, ${cleanCity}, Tamil Nadu, India`;
 
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            query
-          )}&limit=1`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
         );
         const data = await res.json();
         if (data && data.length > 0) {
@@ -265,9 +538,13 @@ function LiveOrderMapModal({
     }
 
     geocodeDestination();
-  }, [currentOrder.deliveryAddress?.city, currentOrder.deliveryAddress?.pincode]);
+  }, [
+    currentOrder.deliveryAddress?.lat,
+    currentOrder.deliveryAddress?.lng,
+    currentOrder.deliveryAddress?.city,
+    currentOrder.deliveryAddress?.pincode,
+  ]);
 
-  // Poll order updates every 2 seconds
   useEffect(() => {
     const fetchLatest = async () => {
       try {
@@ -285,6 +562,25 @@ function LiveOrderMapModal({
     const interval = setInterval(fetchLatest, 2000);
     return () => clearInterval(interval);
   }, [order._id]);
+
+  const handleUpdateDestination = async (newCoords: { lat: number; lng: number }) => {
+    setDestinationCoords(newCoords);
+    try {
+      await fetch(`/api/orders/${currentOrder._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryAddress: {
+            ...currentOrder.deliveryAddress,
+            lat: newCoords.lat,
+            lng: newCoords.lng,
+          },
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist relocated doorstep coordinates:", err);
+    }
+  };
 
   const isOutForDelivery = currentOrder.status === "OUT_FOR_DELIVERY";
   const hasRider = Boolean(currentOrder.assignedRiderEmail || currentOrder.assignedRiderName);
@@ -368,7 +664,7 @@ function LiveOrderMapModal({
             </div>
           </div>
         ) : !hasLiveGps || !destinationCoords ? (
-          /* State 2: Waiting for GPS Signal */
+          /* State 2: Acquiring GPS */
           <div className="flex-1 bg-gray-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
             <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
             <div>
@@ -377,7 +673,7 @@ function LiveOrderMapModal({
             </div>
           </div>
         ) : (
-          /* State 3: Real Road-Snapping Navigation Map */
+          /* State 3: Active Road Snapped Map */
           <div className="relative flex-1 overflow-hidden flex flex-col">
             <div className="relative flex-1 w-full h-full">
               <RealtimeTrackingCanvas
@@ -386,9 +682,9 @@ function LiveOrderMapModal({
                 destLng={destinationCoords.lng}
                 riderName={riderName}
                 onRouteStats={setRouteStats}
+                onDestinationChange={handleUpdateDestination}
               />
 
-              {/* Floating Quick Action Buttons */}
               <div className="absolute top-4 right-4 flex items-center gap-2.5 z-[1000]">
                 {riderPhone && (
                   <a
@@ -409,7 +705,6 @@ function LiveOrderMapModal({
               </div>
             </div>
 
-            {/* Bottom Card */}
             <div className="bg-white p-5 rounded-t-[32px] border-t border-gray-100 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] z-20 space-y-4">
               <div className="flex items-center justify-around px-2">
                 <div className="text-center">
@@ -471,6 +766,10 @@ function DashboardContent() {
   const [newCity, setNewCity] = useState("");
   const [newPincode, setNewPincode] = useState("");
   const [newType, setNewType] = useState<"HOME" | "WORK" | "OTHER">("HOME");
+  const [pickedCoords, setPickedCoords] = useState<{ lat: number; lng: number }>({
+    lat: 10.7656,
+    lng: 79.8428,
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const ordersListRef = useRef<HTMLDivElement>(null);
@@ -615,6 +914,7 @@ function DashboardContent() {
     setNewCity("");
     setNewPincode("");
     setNewType("HOME");
+    setPickedCoords({ lat: 10.7656, lng: 79.8428 });
     setIsAddressModalOpen(true);
   };
 
@@ -626,6 +926,10 @@ function DashboardContent() {
     setNewCity(addr.city || "");
     setNewPincode(addr.pincode || "");
     setNewType(addr.type || "HOME");
+    setPickedCoords({
+      lat: addr.lat || 10.7656,
+      lng: addr.lng || 79.8428,
+    });
     setIsAddressModalOpen(true);
   };
 
@@ -644,6 +948,8 @@ function DashboardContent() {
               street: newStreet.trim(),
               city: newCity.trim(),
               pincode: newPincode.trim(),
+              lat: pickedCoords.lat,
+              lng: pickedCoords.lng,
             }
           : a
       );
@@ -659,6 +965,8 @@ function DashboardContent() {
         city: newCity.trim(),
         pincode: newPincode.trim(),
         isDefault: addresses.length === 0,
+        lat: pickedCoords.lat,
+        lng: pickedCoords.lng,
       };
 
       const updated = [...addresses, newEntry];
@@ -950,7 +1258,7 @@ function DashboardContent() {
                   <div>
                     <h2 className="text-lg font-black text-gray-900">Delivery Addresses & Contacts</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Riders use the assigned phone number to contact you on delivery.
+                      Pin your doorstep on the map so riders arrive directly at your location.
                     </p>
                   </div>
                   <button
@@ -1003,7 +1311,6 @@ function DashboardContent() {
                               )}
                             </div>
 
-                            {/* Actions: Edit and Delete */}
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => handleOpenEditAddress(addr)}
@@ -1037,23 +1344,30 @@ function DashboardContent() {
                           <p className="text-[11px] text-gray-500 mt-0.5">
                             {addr.city} - {addr.pincode}
                           </p>
+
+                          {addr.lat && addr.lng && (
+                            <div className="mt-2 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              <span>GPS Pinned ({addr.lat.toFixed(4)}, {addr.lng.toFixed(4)})</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Add / Edit Address Modal with SkiperSmoothInput integration */}
+                {/* Add / Edit Address Modal with Interactive Map Touch-To-Pin */}
                 {isAddressModalOpen && (
                   <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
-                      <div className="flex items-center justify-between mb-5 border-b border-gray-100 pb-3.5">
+                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+                      <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3.5">
                         <div>
                           <h3 className="font-extrabold text-gray-900 text-sm tracking-tight">
                             {editingAddressId ? "Edit Delivery Location" : "Add Delivery Location"}
                           </h3>
                           <p className="text-[11px] text-gray-400 font-medium mt-0.5">
-                            Provide your doorstep address details for fast delivery.
+                            Tap the map or click "Locate Address" to pinpoint your doorstep.
                           </p>
                         </div>
                         <button
@@ -1064,8 +1378,28 @@ function DashboardContent() {
                         </button>
                       </div>
 
-                      <form onSubmit={handleSaveAddress} className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <form onSubmit={handleSaveAddress} className="space-y-3.5">
+                        {/* Interactive Touch Map */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1">
+                            Set Doorstep Location On Map
+                          </label>
+                          <LocationPickerMap
+                            lat={pickedCoords.lat}
+                            lng={pickedCoords.lng}
+                            street={newStreet}
+                            city={newCity}
+                            pincode={newPincode}
+                            onChange={setPickedCoords}
+                            onAddressDetected={(detected) => {
+                              if (detected.city && !newCity) setNewCity(detected.city);
+                              if (detected.pincode && !newPincode) setNewPincode(detected.pincode);
+                              if (detected.street && !newStreet) setNewStreet(detected.street);
+                            }}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                           <SkiperSmoothInput
                             label="Receiver Name"
                             icon={<UserCheck className="w-4 h-4" />}

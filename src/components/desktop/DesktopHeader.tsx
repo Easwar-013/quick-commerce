@@ -35,7 +35,7 @@ const RECENT_SEARCHES_KEY = "flashkart_recent_searches";
 
 export default function DesktopHeader() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { getTotalCount, getTotalPrice } = useCartStore();
   const { getUserItems } = useWishlistStore();
   const { searchQuery, setSearchQuery, sortBy, setSortBy } = useFilter();
@@ -43,6 +43,7 @@ export default function DesktopHeader() {
   const [mounted, setMounted] = useState(false);
   const [localSearch, setLocalSearch] = useState(searchQuery || "");
   const [imgError, setImgError] = useState(false);
+  const [showWishlistBadge, setShowWishlistBadge] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isDesktopSortOpen, setIsDesktopSortOpen] = useState(false);
@@ -66,6 +67,33 @@ export default function DesktopHeader() {
   useEffect(() => {
     setLocalSearch(searchQuery);
   }, [searchQuery]);
+
+  const userEmail = session?.user?.email || null;
+  const userRole = (session?.user as any)?.role || "customer";
+  const userWishlist = mounted ? getUserItems(userEmail) : [];
+  const wishlistCount = userWishlist.length;
+  const totalCount = mounted ? getTotalCount() : 0;
+  const totalPrice = mounted ? getTotalPrice() : 0;
+
+  // Trigger heart badge popup ONLY once per login session
+  useEffect(() => {
+    if (!mounted || status !== "authenticated" || !userEmail) return;
+
+    const sessionKey = `flashkart_wishlist_notified_${userEmail}`;
+    const alreadyNotified = sessionStorage.getItem(sessionKey);
+
+    if (!alreadyNotified && wishlistCount > 0) {
+      sessionStorage.setItem(sessionKey, "true");
+      setShowWishlistBadge(true);
+
+      // Smoothly disappear after 3.5 seconds
+      const timer = setTimeout(() => {
+        setShowWishlistBadge(false);
+      }, 3500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [mounted, status, userEmail, wishlistCount]);
 
   // Click outside to close dropdowns & recent searches panel
   useEffect(() => {
@@ -120,7 +148,6 @@ export default function DesktopHeader() {
     }
   };
 
-  // Only updates live filter for the cards while typing (NO save to recent searches)
   const handleSearchChange = (val: string) => {
     setLocalSearch(val);
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -132,7 +159,6 @@ export default function DesktopHeader() {
     }, 120);
   };
 
-  // ONLY saves to recent searches when the customer presses ENTER
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && localSearch.trim()) {
       saveRecentSearch(localSearch);
@@ -149,12 +175,12 @@ export default function DesktopHeader() {
     setSearchQuery("");
   };
 
-  const userEmail = session?.user?.email || null;
-  const userRole = (session?.user as any)?.role || "customer";
-  const userWishlist = mounted ? getUserItems(userEmail) : [];
-  const wishlistCount = userWishlist.length;
-  const totalCount = mounted ? getTotalCount() : 0;
-  const totalPrice = mounted ? getTotalPrice() : 0;
+  const handleLogout = () => {
+    if (userEmail) {
+      sessionStorage.removeItem(`flashkart_wishlist_notified_${userEmail}`);
+    }
+    signOut({ callbackUrl: "/login" });
+  };
 
   const isAdmin = userRole === "admin";
   const displayName = session?.user?.name || "Account";
@@ -215,7 +241,7 @@ export default function DesktopHeader() {
                 </button>
               )}
 
-              {/* Recent Searches Panel (Appears when input is focused and empty) */}
+              {/* Recent Searches Panel */}
               <AnimatePresence>
                 {isSearchFocused && !localSearch && recentSearches.length > 0 && (
                   <motion.div
@@ -254,7 +280,7 @@ export default function DesktopHeader() {
                             onClick={(e) => removeRecentSearch(item, e)}
                             className="text-gray-400 hover:text-red-500 rounded-full p-0.5 hover:bg-gray-200/60 transition cursor-pointer"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))}
@@ -342,6 +368,7 @@ export default function DesktopHeader() {
               </Link>
             )}
 
+            {/* Wishlist Link with Smooth Disappearing Notification Badge */}
             {userRole === "customer" && (
               <Link
                 href="/wishlist"
@@ -349,11 +376,23 @@ export default function DesktopHeader() {
                 title="Wishlist"
               >
                 <Heart className="w-4 h-4" />
-                {wishlistCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs pointer-events-none">
-                    {wishlistCount}
-                  </span>
-                )}
+                <AnimatePresence>
+                  {showWishlistBadge && wishlistCount > 0 && (
+                    <motion.span
+                      initial={{ scale: 0, opacity: 0, y: -4 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      exit={{
+                        scale: 0,
+                        opacity: 0,
+                        transition: { duration: 0.4, ease: "easeInOut" },
+                      }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs pointer-events-none"
+                    >
+                      {wishlistCount}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </Link>
             )}
 
@@ -388,7 +427,7 @@ export default function DesktopHeader() {
                   </div>
                 </Link>
                 <button
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={handleLogout}
                   className="p-2 text-gray-400 hover:text-red-600 border border-gray-200 rounded-xl transition cursor-pointer"
                   title="Sign Out"
                 >
