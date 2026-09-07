@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Trash2,
-  Plus,
-  Minus,
   ArrowLeft,
   CheckCircle2,
   Loader2,
@@ -21,6 +19,8 @@ import {
 import { useCartStore } from "@/store/useCartStore";
 import { formatPrice } from "@/lib/utils";
 import DesktopHeader from "@/components/desktop/DesktopHeader";
+import { CompactStepper } from "@/components/ui/compact-stepper";
+import { SlidingNumber } from "@/components/ui/sliding-number";
 
 interface AddressItem {
   id: string;
@@ -101,6 +101,15 @@ export default function CartPage() {
       setCouponError(err.message);
     } finally {
       setCouponLoading(false);
+    }
+  };
+
+  const handleStepperChange = (id: string, currentQty: number, nextQty: number) => {
+    if (nextQty <= 0) {
+      removeItem(id);
+    } else {
+      const diff = nextQty - currentQty;
+      updateQuantity(id, diff);
     }
   };
 
@@ -238,56 +247,56 @@ export default function CartPage() {
             {/* Left Column: Items & Delivery Address */}
             <div className="lg:col-span-7 space-y-4">
               <div className="space-y-2.5">
-                {items.map((item) => (
-                  <div
-                    key={item._id}
-                    className="bg-white p-4 rounded-2xl border border-gray-200 flex items-center justify-between gap-4 shadow-xs"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="w-14 h-14 rounded-xl object-cover bg-gray-50 border border-gray-100"
-                      />
-                      <div>
-                        <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
-                        {item.unit && <p className="text-xs text-gray-400">{item.unit}</p>}
-                        <p className="text-xs font-extrabold text-emerald-700 mt-0.5">
-                          {formatPrice(item.discountPrice || item.price)}
-                        </p>
-                      </div>
-                    </div>
+                {items.map((item) => {
+                  const itemUnitPrice = item.discountPrice || item.price;
+                  const itemTotalPrice = itemUnitPrice * item.quantity;
 
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-2 border border-gray-200">
-                        <button
-                          onClick={() => updateQuantity(item._id, -1)}
-                          className="p-1 hover:bg-white rounded-lg transition text-gray-700 hover:text-black cursor-pointer"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-xs font-extrabold text-gray-900 min-w-[20px] text-center">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => updateQuantity(item._id, 1)}
-                          disabled={item.quantity >= item.stock}
-                          className="p-1 hover:bg-white rounded-lg transition text-gray-700 hover:text-black disabled:opacity-30 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
+                  return (
+                    <div
+                      key={item._id}
+                      className="bg-white p-4 rounded-2xl border border-gray-200 flex items-center justify-between gap-4 shadow-xs"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-14 h-14 rounded-xl object-cover bg-gray-50 border border-gray-100"
+                        />
+                        <div>
+                          <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
+                          {item.unit && <p className="text-xs text-gray-400">{item.unit}</p>}
+                          <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-700 mt-0.5">
+                            <span className="inline-flex items-center">
+                              ₹<SlidingNumber number={itemTotalPrice} />
+                            </span>
+                            {item.quantity > 1 && (
+                              <span className="text-[11px] font-normal text-gray-400">
+                                ({formatPrice(itemUnitPrice)} each)
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      <button
-                        onClick={() => removeItem(item._id)}
-                        className="p-2 text-gray-400 hover:text-red-600 transition cursor-pointer"
-                        title="Remove Item"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <CompactStepper
+                          value={item.quantity}
+                          min={0}
+                          max={item.stock || 99}
+                          onChange={(nextVal) => handleStepperChange(item._id, item.quantity, nextVal)}
+                        />
+
+                        <button
+                          onClick={() => removeItem(item._id)}
+                          className="p-2 text-gray-400 hover:text-red-600 transition cursor-pointer"
+                          title="Remove Item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Delivery Address Section */}
@@ -405,46 +414,56 @@ export default function CartPage() {
               </div>
 
               <div className="border-t border-gray-100 pt-3 space-y-2.5 text-xs text-gray-600">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span>Item Total</span>
-                  <span className="font-bold text-gray-900">{formatPrice(subtotal)}</span>
+                  <span className="font-bold text-gray-900 inline-flex items-center">
+                    ₹<SlidingNumber number={subtotal} />
+                  </span>
                 </div>
 
                 {appliedCoupon && (
-                  <div className="flex justify-between text-emerald-600 font-bold">
+                  <div className="flex justify-between items-center text-emerald-600 font-bold">
                     <span>Coupon ({appliedCoupon.discountPercentage}%)</span>
-                    <span>-{formatPrice(couponDiscount)}</span>
+                    <span className="inline-flex items-center">
+                      -₹<SlidingNumber number={couponDiscount} />
+                    </span>
                   </div>
                 )}
 
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span>Delivery Charge</span>
                   <span>
                     {deliveryFee === 0 ? (
                       <span className="text-emerald-600 font-bold uppercase">Free</span>
                     ) : (
-                      formatPrice(deliveryFee)
+                      <span className="font-semibold text-gray-900 inline-flex items-center">
+                        ₹<SlidingNumber number={deliveryFee} />
+                      </span>
                     )}
                   </span>
                 </div>
 
-                <div className="border-t border-gray-100 pt-2.5 flex justify-between font-black text-gray-900 text-sm">
+                <div className="border-t border-gray-100 pt-2.5 flex justify-between items-center font-black text-gray-900 text-sm">
                   <span>To Pay</span>
-                  <span>{formatPrice(grandTotal)}</span>
+                  <span className="inline-flex items-center">
+                    ₹<SlidingNumber number={grandTotal} />
+                  </span>
                 </div>
               </div>
 
               <button
                 onClick={handleCheckout}
                 disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition text-xs shadow-md flex items-center justify-center disabled:opacity-50 cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : addresses.length === 0 ? (
                   "Add Address to Pay"
                 ) : (
-                  `Place Order • ${formatPrice(grandTotal)}`
+                  <span className="inline-flex items-center gap-1">
+                    Place Order • ₹<SlidingNumber number={grandTotal} />
+                  </span>
                 )}
               </button>
             </div>

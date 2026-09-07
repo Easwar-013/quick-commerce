@@ -21,8 +21,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/useCartStore";
 import { useWishlistStore } from "@/store/useWishlistStore";
 import { useFilter } from "@/context/FilterContext";
-import { formatPrice } from "@/lib/utils";
 import { SkiperSmoothInput } from "@/components/ui/skiper-input";
+import { SlidingNumber } from "@/components/ui/sliding-number";
 
 const SORT_OPTIONS = [
   { id: "default", label: "Default" },
@@ -75,7 +75,6 @@ export default function DesktopHeader() {
   const totalCount = mounted ? getTotalCount() : 0;
   const totalPrice = mounted ? getTotalPrice() : 0;
 
-  // Trigger heart badge popup ONLY once per login session
   useEffect(() => {
     if (!mounted || status !== "authenticated" || !userEmail) return;
 
@@ -86,7 +85,6 @@ export default function DesktopHeader() {
       sessionStorage.setItem(sessionKey, "true");
       setShowWishlistBadge(true);
 
-      // Smoothly disappear after 3.5 seconds
       const timer = setTimeout(() => {
         setShowWishlistBadge(false);
       }, 3500);
@@ -95,7 +93,6 @@ export default function DesktopHeader() {
     }
   }, [mounted, status, userEmail, wishlistCount]);
 
-  // Click outside to close dropdowns & recent searches panel
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node;
@@ -368,7 +365,7 @@ export default function DesktopHeader() {
               </Link>
             )}
 
-            {/* Wishlist Link with Smooth Disappearing Notification Badge */}
+            {/* Wishlist Link */}
             {userRole === "customer" && (
               <Link
                 href="/wishlist"
@@ -450,8 +447,14 @@ export default function DesktopHeader() {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 sm:px-3.5 py-2 rounded-xl flex items-center gap-1.5 sm:gap-2 font-semibold text-xs transition shadow-sm active:scale-95 shrink-0"
               >
                 <ShoppingBag className="w-4 h-4" />
-                <span>{totalCount} items</span>
-                {totalCount > 0 && <span className="hidden sm:inline">• {formatPrice(totalPrice)}</span>}
+                <span className="inline-flex items-center gap-1">
+                  <SlidingNumber number={totalCount} /> items
+                </span>
+                {totalCount > 0 && (
+                  <span className="hidden sm:inline-flex items-center gap-1">
+                    • ₹<SlidingNumber number={totalPrice} />
+                  </span>
+                )}
               </Link>
             )}
           </div>
@@ -518,7 +521,7 @@ export default function DesktopHeader() {
                           onClick={(e) => removeRecentSearch(item, e)}
                           className="text-gray-400 p-0.5 cursor-pointer"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ))}
