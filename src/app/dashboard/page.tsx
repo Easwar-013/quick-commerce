@@ -53,7 +53,7 @@ export interface AddressItem {
   lng?: number;
 }
 
-// Interactive Touch/Tap Map with Address Search & Reverse Geocoding
+// Interactive Touch/Tap Map with Live GPS Initialization & Reverse Geocoding
 function LocationPickerMap({
   lat,
   lng,
@@ -185,23 +185,23 @@ function LocationPickerMap({
   }, [lat, lng]);
 
   return (
-    <div className="relative w-full h-52 rounded-2xl overflow-hidden border border-gray-200 mt-2 shadow-inner">
+    <div className="relative w-full h-48 rounded-2xl overflow-hidden border border-gray-200 mt-2 shadow-inner">
       <div ref={mapContainerRef} className="w-full h-full" />
       
       {/* Top Helper Badge */}
-      <div className="absolute top-2.5 left-2.5 z-[1000] bg-black/75 backdrop-blur-xs text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl pointer-events-none shadow-md flex items-center gap-1.5 border border-white/10">
-        <Crosshair className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
-        <span>Tap anywhere or drag the pin to your exact delivery location</span>
+      <div className="absolute top-2.5 left-2.5 z-[1000] bg-black/75 backdrop-blur-xs text-white text-[10px] font-semibold px-2.5 py-1 rounded-xl pointer-events-none shadow-md flex items-center gap-1.5 border border-white/10">
+        <Crosshair className="w-3 h-3 text-emerald-400 shrink-0 animate-pulse" />
+        <span>Tap anywhere or drag pin to exact location</span>
       </div>
 
       {/* Bottom Floating Tip */}
-      <div className="absolute bottom-2.5 inset-x-3 z-[1000] bg-white/90 backdrop-blur-md text-emerald-800 text-[10px] font-bold py-1 px-2.5 rounded-xl border border-emerald-200 shadow-sm flex items-center justify-between pointer-events-none">
-        <span className="flex items-center gap-1">
+      <div className="absolute bottom-2.5 inset-x-2.5 z-[1000] bg-white/90 backdrop-blur-md text-emerald-800 text-[9px] font-bold py-1 px-2 rounded-xl border border-emerald-200 shadow-sm flex items-center justify-between pointer-events-none">
+        <span className="flex items-center gap-1 truncate">
           <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
-          Move the pin directly over your house or building
+          Move pin over your building
         </span>
-        <span className="font-mono text-[9px] text-gray-500 font-normal">
-          {lat.toFixed(4)}, {lng.toFixed(4)}
+        <span className="font-mono text-[9px] text-gray-500 font-normal shrink-0 ml-1">
+          {lat.toFixed(3)}, {lng.toFixed(3)}
         </span>
       </div>
     </div>
@@ -413,7 +413,6 @@ function LiveOrderMapModal({
     const addr = currentOrder.deliveryAddress;
     if (!addr) return;
 
-    // Prioritize direct coordinates saved by the customer
     if (
       addr.lat &&
       addr.lng &&
@@ -826,6 +825,7 @@ function DashboardContent() {
     }, 450);
   };
 
+  // Automatically acquire device GPS when opening "Add Address" modal
   const handleOpenAddAddress = () => {
     setEditingAddressId(null);
     setNewContactName(session?.user?.name || displayName || "");
@@ -834,7 +834,24 @@ function DashboardContent() {
     setNewCity("");
     setNewPincode("");
     setNewType("HOME");
-    setPickedCoords({ lat: 10.7656, lng: 79.8428 });
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setPickedCoords({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => {
+          setPickedCoords({ lat: 10.7656, lng: 79.8428 });
+        },
+        { enableHighAccuracy: true, timeout: 7000 }
+      );
+    } else {
+      setPickedCoords({ lat: 10.7656, lng: 79.8428 });
+    }
+
     setIsAddressModalOpen(true);
   };
 
@@ -1277,11 +1294,12 @@ function DashboardContent() {
                   </div>
                 )}
 
-                {/* Add / Edit Address Modal with Interactive Map Touch-To-Pin */}
+                {/* Add / Edit Address Modal - Fixed Centered Popup with Scroll Lockdown */}
                 {isAddressModalOpen && (
-                  <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-                      <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3.5">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
+                      {/* Fixed Header */}
+                      <div className="flex items-center justify-between px-6 pt-5 pb-3.5 border-b border-gray-100 bg-white shrink-0">
                         <div>
                           <h3 className="font-extrabold text-gray-900 text-sm tracking-tight">
                             {editingAddressId ? "Edit Delivery Location" : "Add Delivery Location"}
@@ -1298,112 +1316,116 @@ function DashboardContent() {
                         </button>
                       </div>
 
-                      <form onSubmit={handleSaveAddress} className="space-y-3.5">
-                        {/* Interactive Touch Map */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider">
-                              Pinpoint Your Exact Location
+                      {/* Scrollable Form Body */}
+                      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5 overscroll-contain">
+                        <form id="address-form" onSubmit={handleSaveAddress} className="space-y-3.5">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+                                Pinpoint Your Exact Location
+                              </label>
+                              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                {pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}
+                              </span>
+                            </div>
+                            <LocationPickerMap
+                              lat={pickedCoords.lat}
+                              lng={pickedCoords.lng}
+                              onChange={(coords) => setPickedCoords(coords)}
+                              onAddressDetected={(detected) => {
+                                if (detected.city && !newCity) setNewCity(detected.city);
+                                if (detected.pincode && !newPincode) setNewPincode(detected.pincode);
+                                if (detected.street && !newStreet) setNewStreet(detected.street);
+                              }}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                            <SkiperSmoothInput
+                              label="Receiver Name"
+                              icon={<UserCheck className="w-4 h-4" />}
+                              value={newContactName}
+                              onChange={(val) => setNewContactName(val)}
+                              required
+                            />
+
+                            <SkiperSmoothInput
+                              label="Mobile Number"
+                              icon={<Smartphone className="w-4 h-4" />}
+                              value={newPhone}
+                              onChange={(val) => setNewPhone(val)}
+                              required
+                            />
+                          </div>
+
+                          {/* Address Type Selector */}
+                          <div className="relative">
+                            <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                              Address Type
                             </label>
-                            <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                              {pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}
-                            </span>
+                            <div className="grid grid-cols-3 gap-2">
+                              {(["HOME", "WORK", "OTHER"] as const).map((typeOption) => (
+                                <button
+                                  key={typeOption}
+                                  type="button"
+                                  onClick={() => setNewType(typeOption)}
+                                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                    newType === typeOption
+                                      ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-2xs"
+                                      : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                                  }`}
+                                >
+                                  {typeOption}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <LocationPickerMap
-                            lat={pickedCoords.lat}
-                            lng={pickedCoords.lng}
-                            onChange={(coords) => setPickedCoords(coords)}
-                            onAddressDetected={(detected) => {
-                              if (detected.city && !newCity) setNewCity(detected.city);
-                              if (detected.pincode && !newPincode) setNewPincode(detected.pincode);
-                              if (detected.street && !newStreet) setNewStreet(detected.street);
-                            }}
-                          />
-                        </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                           <SkiperSmoothInput
-                            label="Receiver Name"
-                            icon={<UserCheck className="w-4 h-4" />}
-                            value={newContactName}
-                            onChange={(val) => setNewContactName(val)}
+                            label="Street / Flat / Door No"
+                            icon={<MapPin className="w-4 h-4" />}
+                            value={newStreet}
+                            onChange={(val) => setNewStreet(val)}
                             required
                           />
 
-                          <SkiperSmoothInput
-                            label="Mobile Number"
-                            icon={<Smartphone className="w-4 h-4" />}
-                            value={newPhone}
-                            onChange={(val) => setNewPhone(val)}
-                            required
-                          />
-                        </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <SkiperSmoothInput
+                              label="City / Town"
+                              icon={<Building2 className="w-4 h-4" />}
+                              value={newCity}
+                              onChange={(val) => setNewCity(val)}
+                              required
+                            />
 
-                        {/* Address Type Selector */}
-                        <div className="relative">
-                          <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">
-                            Address Type
-                          </label>
-                          <div className="grid grid-cols-3 gap-2">
-                            {(["HOME", "WORK", "OTHER"] as const).map((typeOption) => (
-                              <button
-                                key={typeOption}
-                                type="button"
-                                onClick={() => setNewType(typeOption)}
-                                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                                  newType === typeOption
-                                    ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-2xs"
-                                    : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                                }`}
-                              >
-                                {typeOption}
-                              </button>
-                            ))}
+                            <SkiperSmoothInput
+                              label="Pincode"
+                              icon={<Hash className="w-4 h-4" />}
+                              value={newPincode}
+                              onChange={(val) => setNewPincode(val)}
+                              required
+                            />
                           </div>
-                        </div>
+                        </form>
+                      </div>
 
-                        <SkiperSmoothInput
-                          label="Street / Flat / Door No"
-                          icon={<MapPin className="w-4 h-4" />}
-                          value={newStreet}
-                          onChange={(val) => setNewStreet(val)}
-                          required
-                        />
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                          <SkiperSmoothInput
-                            label="City / Town"
-                            icon={<Building2 className="w-4 h-4" />}
-                            value={newCity}
-                            onChange={(val) => setNewCity(val)}
-                            required
-                          />
-
-                          <SkiperSmoothInput
-                            label="Pincode"
-                            icon={<Hash className="w-4 h-4" />}
-                            value={newPincode}
-                            onChange={(val) => setNewPincode(val)}
-                            required
-                          />
-                        </div>
-
-                        <div className="flex gap-2.5 pt-3">
-                          <button
-                            type="button"
-                            onClick={() => setIsAddressModalOpen(false)}
-                            className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold cursor-pointer shadow-md hover:shadow-emerald-600/30 transition-all active:scale-95"
-                          >
-                            {editingAddressId ? "Update Address" : "Save Address"}
-                          </button>
-                        </div>
-                      </form>
+                      {/* Fixed Footer with Action Buttons */}
+                      <div className="flex gap-2.5 px-6 py-3.5 border-t border-gray-100 bg-white shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setIsAddressModalOpen(false)}
+                          className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          form="address-form"
+                          type="submit"
+                          className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold cursor-pointer shadow-md hover:shadow-emerald-600/30 transition-all active:scale-95"
+                        >
+                          {editingAddressId ? "Update Address" : "Save Address"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

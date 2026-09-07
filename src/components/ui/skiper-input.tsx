@@ -224,7 +224,7 @@ export function SkiperSmoothInput({
       onClick={() => inputRef.current?.focus()}
       className={cn("relative w-full cursor-text group", wrapperClassName)}
     >
-      {/* Animated Outline Glow */}
+      {/* Animated Outline Glow Frame (Clean Outer Boundary Only) */}
       <motion.div
         animate={{
           boxShadow: isFocused
@@ -232,7 +232,7 @@ export function SkiperSmoothInput({
             : "0 0 0 1px rgba(229, 231, 235, 1)",
         }}
         transition={{ duration: 0.2 }}
-        className="absolute inset-0 rounded-2xl bg-white pointer-events-none"
+        className="absolute inset-0 rounded-2xl bg-white pointer-events-none border-0 ring-0 outline-none"
       />
 
       <div className="relative flex items-center px-4 py-3.5 z-10">
@@ -266,7 +266,7 @@ export function SkiperSmoothInput({
             </motion.label>
           )}
 
-          {/* Actual Input - caret-transparent eliminates double cursor */}
+          {/* Actual Input - strictly flat with explicit inline style resets */}
           <input
             {...props}
             ref={inputRef}
@@ -293,8 +293,9 @@ export function SkiperSmoothInput({
               caretOpacity.set(0);
               onBlur?.(e);
             }}
+            style={{ border: "none", outline: "none", boxShadow: "none" }}
             className={cn(
-              "col-start-1 col-end-2 row-start-1 row-end-2 w-full bg-transparent outline-none text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 caret-transparent selection:bg-emerald-100 selection:text-emerald-900",
+              "col-start-1 col-end-2 row-start-1 row-end-2 w-full bg-transparent !border-none !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!border-none text-xs sm:text-sm font-medium text-gray-900 placeholder:text-gray-400 caret-transparent selection:bg-emerald-100 selection:text-emerald-900 shadow-none",
               className
             )}
           />
