@@ -47,9 +47,11 @@ function RiderNavigationModal({
 
   const [currentOrder, setCurrentOrder] = useState(order);
   const [customerCoords, setCustomerCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [riderCoords, setRiderCoords] = useState<{ lat: number; lng: number }>({
-    lat: currentOrder.riderLocation?.lat || 10.7656,
-    lng: currentOrder.riderLocation?.lng || 79.8428,
+  const [riderCoords, setRiderCoords] = useState<{ lat: number; lng: number } | null>(() => {
+    if (order.riderLocation?.lat && order.riderLocation?.lng) {
+      return { lat: order.riderLocation.lat, lng: order.riderLocation.lng };
+    }
+    return null;
   });
   const [routeStats, setRouteStats] = useState({ distanceKm: "Calculating...", durationMins: "Calculating..." });
 
@@ -57,7 +59,7 @@ function RiderNavigationModal({
   const customerPhone = currentOrder.customerPhone || currentOrder.deliveryAddress?.phone || null;
   const address = currentOrder.deliveryAddress;
 
-  // Poll order updates every 2 seconds to keep rider location and state fully synced
+  // Poll order updates every 2 seconds
   useEffect(() => {
     const fetchLatest = async () => {
       try {
@@ -66,12 +68,6 @@ function RiderNavigationModal({
         const data = await res.json();
         if (data.success && data.data) {
           setCurrentOrder(data.data);
-          if (data.data.riderLocation?.lat && data.data.riderLocation?.lng) {
-            setRiderCoords({
-              lat: data.data.riderLocation.lat,
-              lng: data.data.riderLocation.lng,
-            });
-          }
         }
       } catch (err) {
         console.error("Failed to poll navigation order:", err);
@@ -82,7 +78,7 @@ function RiderNavigationModal({
     return () => clearInterval(interval);
   }, [order._id]);
 
-  // 1. Resolve Customer Destination Coordinates strictly within Tamil Nadu bounds
+  // 1. Resolve Customer Destination Coordinates
   useEffect(() => {
     if (!address) return;
 
@@ -140,39 +136,56 @@ function RiderNavigationModal({
     resolveCoords();
   }, [address?.lat, address?.lng, address?.street, address?.city, address?.pincode]);
 
-  // 2. Track Live Rider Device GPS and push to server
+  // 2. High-Accuracy Hardware GPS tracking
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
 
-    const watchId = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const newLat = pos.coords.latitude;
-        const newLng = pos.coords.longitude;
-        setRiderCoords({ lat: newLat, lng: newLng });
+    let isSubscribed = true;
 
-        try {
-          await fetch(`/api/orders/${order._id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              riderLocation: { lat: newLat, lng: newLng },
-            }),
-          });
-        } catch (err) {
-          console.warn("Failed to update rider location in navigation modal:", err);
-        }
-      },
-      (err) => console.warn("Rider nav GPS error:", err.message),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 }
+    const updateLocation = async (lat: number, lng: number) => {
+      if (!isSubscribed) return;
+      setRiderCoords({ lat, lng });
+
+      try {
+        await fetch(`/api/orders/${order._id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            riderLocation: { lat, lng },
+          }),
+        });
+      } catch (err) {
+        console.warn("Failed to transmit rider coordinates:", err);
+      }
+    };
+
+    // Immediate fix request to wake mobile hardware
+    navigator.geolocation.getCurrentPosition(
+      (pos) => updateLocation(pos.coords.latitude, pos.coords.longitude),
+      (err) => console.warn("Initial GPS acquisition failed:", err),
+      { enableHighAccuracy: true, timeout: 8000 }
     );
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    // Continuous watch
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => updateLocation(pos.coords.latitude, pos.coords.longitude),
+      (err) => console.warn("Rider watchPosition error:", err.message),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 1000 }
+    );
+
+    return () => {
+      isSubscribed = false;
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, [order._id]);
 
   // 3. Initialize Leaflet Map
   useEffect(() => {
     if (!customerCoords || !mapContainerRef.current || leafletMapRef.current) return;
     let isMounted = true;
+
+    const startLat = riderCoords?.lat || customerCoords.lat - 0.005;
+    const startLng = riderCoords?.lng || customerCoords.lng - 0.005;
 
     async function initNavMap() {
       const L = (await import("leaflet")).default;
@@ -181,7 +194,7 @@ function RiderNavigationModal({
       if (!isMounted || !mapContainerRef.current) return;
 
       const map = L.map(mapContainerRef.current, {
-        center: [(riderCoords.lat + customerCoords!.lat) / 2, (riderCoords.lng + customerCoords!.lng) / 2],
+        center: [(startLat + customerCoords!.lat) / 2, (startLng + customerCoords!.lng) / 2],
         zoom: 15,
         zoomControl: false,
       });
@@ -191,7 +204,7 @@ function RiderNavigationModal({
         maxZoom: 19,
       }).addTo(map);
 
-      // Customer Destination Pin (Red)
+      // Destination Pin (Red)
       const destIcon = L.divIcon({
         className: "dest-pin",
         html: `
@@ -233,43 +246,7 @@ function RiderNavigationModal({
         iconSize: [44, 60],
         iconAnchor: [22, 30],
       });
-      riderMarkerRef.current = L.marker([riderCoords.lat, riderCoords.lng], { icon: bikerIcon }).addTo(map);
-
-      // Fetch Turn-by-Turn OSRM Route
-      try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${riderCoords.lng},${riderCoords.lat};${customerCoords!.lng},${customerCoords!.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(osrmUrl);
-        const routeData = await res.json();
-
-        if (routeData.routes && routeData.routes.length > 0) {
-          const route = routeData.routes[0];
-          const latLngs = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
-
-          const polyline = L.polyline(latLngs, {
-            color: "#059669",
-            weight: 5,
-            opacity: 0.9,
-            lineCap: "round",
-            lineJoin: "round",
-          }).addTo(map);
-          routeLineRef.current = polyline;
-          map.fitBounds(polyline.getBounds(), { padding: [55, 55] });
-
-          const distanceKm = (route.distance / 1000).toFixed(1) + " km";
-          const durationMins = Math.max(1, Math.ceil(route.duration / 60)) + " mins";
-          setRouteStats({ distanceKm, durationMins });
-        }
-      } catch {
-        const polyline = L.polyline(
-          [
-            [riderCoords.lat, riderCoords.lng],
-            [customerCoords!.lat, customerCoords!.lng],
-          ],
-          { color: "#059669", weight: 4, dashArray: "6, 8" }
-        ).addTo(map);
-        routeLineRef.current = polyline;
-        map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-      }
+      riderMarkerRef.current = L.marker([startLat, startLng], { icon: bikerIcon }).addTo(map);
 
       setTimeout(() => {
         map.invalidateSize();
@@ -289,36 +266,69 @@ function RiderNavigationModal({
     };
   }, [customerCoords]);
 
-  // 4. Update markers & route when rider moves
+  // 4. Dynamically update rider marker position and recalculate OSRM route
   useEffect(() => {
-    if (!leafletMapRef.current || !customerCoords) return;
+    if (!leafletMapRef.current || !customerCoords || !riderCoords) return;
 
-    if (riderMarkerRef.current && riderCoords.lat && riderCoords.lng) {
+    const map = leafletMapRef.current;
+
+    if (riderMarkerRef.current) {
       riderMarkerRef.current.setLatLng([riderCoords.lat, riderCoords.lng]);
     }
 
-    if (destMarkerRef.current && customerCoords.lat && customerCoords.lng) {
+    if (destMarkerRef.current) {
       destMarkerRef.current.setLatLng([customerCoords.lat, customerCoords.lng]);
     }
 
-    if (riderCoords.lat && riderCoords.lng && customerCoords.lat && customerCoords.lng) {
-      fetch(
-        `https://router.project-osrm.org/route/v1/driving/${riderCoords.lng},${riderCoords.lat};${customerCoords.lng},${customerCoords.lat}?overview=full&geometries=geojson`
-      )
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.routes && data.routes.length > 0 && routeLineRef.current) {
-            const latLngs = data.routes[0].geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
-            routeLineRef.current.setLatLngs(latLngs);
+    const fetchRoute = async () => {
+      const L = (await import("leaflet")).default;
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${riderCoords.lng},${riderCoords.lat};${customerCoords.lng},${customerCoords.lat}?overview=full&geometries=geojson`;
+        const res = await fetch(osrmUrl);
+        const routeData = await res.json();
 
-            const distanceKm = (data.routes[0].distance / 1000).toFixed(1) + " km";
-            const durationMins = Math.max(1, Math.ceil(data.routes[0].duration / 60)) + " mins";
-            setRouteStats({ distanceKm, durationMins });
+        if (routeData.routes && routeData.routes.length > 0) {
+          const route = routeData.routes[0];
+          const latLngs = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+
+          if (routeLineRef.current) {
+            routeLineRef.current.setLatLngs(latLngs);
+          } else {
+            routeLineRef.current = L.polyline(latLngs, {
+              color: "#059669",
+              weight: 5,
+              opacity: 0.9,
+              lineCap: "round",
+              lineJoin: "round",
+            }).addTo(map);
           }
-        })
-        .catch(() => {});
-    }
-  }, [riderCoords.lat, riderCoords.lng, customerCoords]);
+
+          map.fitBounds(L.latLngBounds(latLngs), { padding: [55, 55] });
+
+          const distanceKm = (route.distance / 1000).toFixed(1) + " km";
+          const durationMins = Math.max(1, Math.ceil(route.duration / 60)) + " mins";
+          setRouteStats({ distanceKm, durationMins });
+        }
+      } catch {
+        const directLine: [number, number][] = [
+          [riderCoords.lat, riderCoords.lng],
+          [customerCoords.lat, customerCoords.lng],
+        ];
+        if (routeLineRef.current) {
+          routeLineRef.current.setLatLngs(directLine as any);
+        } else {
+          routeLineRef.current = (L as any).polyline(directLine, {
+            color: "#059669",
+            weight: 4,
+            dashArray: "6, 8",
+          }).addTo(map);
+        }
+        map.fitBounds((L as any).latLngBounds(directLine), { padding: [50, 50] });
+      }
+    };
+
+    fetchRoute();
+  }, [riderCoords?.lat, riderCoords?.lng, customerCoords]);
 
   const hasGPSPin = Boolean(
     address?.lat &&
@@ -506,7 +516,7 @@ export default function DeliveryAppPage() {
     (o) => o.status === "OUT_FOR_DELIVERY" && o.assignedRiderEmail === riderEmail
   );
 
-  // Broadcast Real-Time GPS from Rider Device
+  // Background broadcast of real-time GPS while delivering
   useEffect(() => {
     if (myActiveOrders.length === 0) {
       setGpsActive(false);
@@ -520,32 +530,39 @@ export default function DeliveryAppPage() {
       return;
     }
 
+    const pushCoords = async (latitude: number, longitude: number) => {
+      setGpsActive(true);
+      try {
+        await fetch(`/api/orders/${activeOrderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            riderLocation: { lat: latitude, lng: longitude },
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to transmit GPS:", err);
+      }
+    };
+
+    // Immediate fix
+    navigator.geolocation.getCurrentPosition(
+      (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
+      (err) => console.warn("Background initial GPS error:", err.message),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+
+    // Watch stream
     const watchId = navigator.geolocation.watchPosition(
-      async (position) => {
-        setGpsActive(true);
-        try {
-          await fetch(`/api/orders/${activeOrderId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              riderLocation: {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              },
-            }),
-          });
-        } catch (err) {
-          console.error("Failed to transmit GPS:", err);
-        }
-      },
+      (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
       (error) => {
         console.warn("GPS tracking error:", error.message);
         setGpsActive(false);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 4000,
+        timeout: 12000,
+        maximumAge: 1000,
       }
     );
 
@@ -596,7 +613,7 @@ export default function DeliveryAppPage() {
               resolve();
             },
             () => resolve(),
-            { timeout: 4000 }
+            { enableHighAccuracy: true, timeout: 6000 }
           );
         });
       }
