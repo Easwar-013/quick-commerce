@@ -10,7 +10,7 @@ import {
   useSpring,
   useReducedMotion,
 } from "framer-motion";
-import { Lock, Mail, User, Loader2, ArrowLeft } from "lucide-react";
+import { Lock, Mail, User, Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const PASSWORD_CHAR =
   typeof navigator !== "undefined" && navigator.userAgent.match(/firefox|fxios/i)
@@ -25,6 +25,9 @@ function SkiperSmoothInput({
   onChange,
   required = false,
   minLength,
+  showPasswordToggle = false,
+  showPassword,
+  onTogglePassword,
 }: {
   label: string;
   icon: React.ReactNode;
@@ -33,6 +36,9 @@ function SkiperSmoothInput({
   onChange: (val: string) => void;
   required?: boolean;
   minLength?: number;
+  showPasswordToggle?: boolean;
+  showPassword?: boolean;
+  onTogglePassword?: () => void;
 }) {
   const [isFocused, setIsFocused] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -82,7 +88,7 @@ function SkiperSmoothInput({
         ? selectionStart
         : selectionEnd;
 
-    const isPassword = type === "password";
+    const isPassword = type === "password" && !showPassword;
     const textBeforeCaret = isPassword
       ? PASSWORD_CHAR.repeat(caretIndex)
       : target.value.slice(0, caretIndex);
@@ -116,7 +122,7 @@ function SkiperSmoothInput({
     if (input && document.activeElement === input) {
       updateCaretRef.current(input);
     }
-  }, [value, type]);
+  }, [value, type, showPassword]);
 
   useEffect(() => {
     const input = inputRef.current;
@@ -153,6 +159,7 @@ function SkiperSmoothInput({
   }, []);
 
   const hasValue = value.length > 0;
+  const actualType = type === "password" && showPassword ? "text" : type;
 
   return (
     <div
@@ -166,7 +173,7 @@ function SkiperSmoothInput({
             : "0 0 0 1px rgba(229, 231, 235, 1)",
         }}
         transition={{ duration: 0.2 }}
-        className="absolute inset-0 rounded-2xl bg-white pointer-events-none"
+        className="absolute inset-0 rounded-2xl bg-white pointer-events-none border-0 ring-0 outline-none"
       />
 
       <div className="relative flex items-center px-4 py-3.5 z-10">
@@ -180,7 +187,7 @@ function SkiperSmoothInput({
 
         <div
           ref={containerRef}
-          className="relative flex-1 grid grid-cols-1 items-center h-5 overflow-hidden"
+          className="relative flex-1 grid grid-cols-1 items-center h-5 overflow-hidden pr-2"
           style={{ caretColor: "transparent" }}
         >
           <motion.label
@@ -197,7 +204,7 @@ function SkiperSmoothInput({
 
           <input
             ref={inputRef}
-            type={type}
+            type={actualType}
             required={required}
             minLength={minLength}
             value={value}
@@ -215,7 +222,8 @@ function SkiperSmoothInput({
               setIsFocused(false);
               caretOpacity.set(0);
             }}
-            className="col-start-1 col-end-2 row-start-1 row-end-2 w-full bg-transparent outline-none text-xs sm:text-sm font-medium text-gray-900 caret-transparent selection:bg-emerald-100 selection:text-emerald-900"
+            style={{ border: "none", outline: "none", boxShadow: "none" }}
+            className="col-start-1 col-end-2 row-start-1 row-end-2 w-full bg-transparent !border-none !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!border-none text-xs sm:text-sm font-medium text-gray-900 caret-transparent selection:bg-emerald-100 selection:text-emerald-900 shadow-none"
           />
 
           <span
@@ -229,6 +237,19 @@ function SkiperSmoothInput({
             style={{ x: springCaretX, opacity: caretOpacity }}
           />
         </div>
+
+        {showPasswordToggle && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePassword?.();
+            }}
+            className="ml-2 text-gray-400 hover:text-emerald-600 focus:outline-none z-20 cursor-pointer p-1"
+          >
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -305,6 +326,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [devourText, setDevourText] = useState("");
   const [loading, setLoading] = useState(false);
   const [isDevouring, setIsDevouring] = useState(false);
@@ -321,14 +343,12 @@ export default function RegisterPage() {
       return;
     }
 
-    // 1. Capture payload
     const payload = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password,
     };
 
-    // 2. Set particle text and immediately wipe input fields with 0 delay
     setDevourText(name);
     setName("");
     setEmail("");
@@ -336,7 +356,6 @@ export default function RegisterPage() {
     setIsDevouring(true);
     setError("");
 
-    // 3. Brief animation duration before network call
     await new Promise((resolve) => setTimeout(resolve, 550));
     setIsDevouring(false);
     setLoading(true);
@@ -413,6 +432,9 @@ export default function RegisterPage() {
               value={password}
               onChange={setPassword}
               required
+              showPasswordToggle={true}
+              showPassword={showPassword}
+              onTogglePassword={() => setShowPassword(!showPassword)}
             />
 
             <div className="pt-2">
