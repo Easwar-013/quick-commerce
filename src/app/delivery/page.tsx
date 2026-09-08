@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
-// In-app Leaflet Turn-by-Turn Navigation Modal for Delivery Partner
 function RiderNavigationModal({
   order,
   riderPhone,
@@ -59,7 +58,6 @@ function RiderNavigationModal({
   const customerPhone = currentOrder.customerPhone || currentOrder.deliveryAddress?.phone || null;
   const address = currentOrder.deliveryAddress;
 
-  // Poll order updates every 2 seconds
   useEffect(() => {
     const fetchLatest = async () => {
       try {
@@ -78,7 +76,6 @@ function RiderNavigationModal({
     return () => clearInterval(interval);
   }, [order._id]);
 
-  // 1. Resolve Customer Destination Coordinates
   useEffect(() => {
     if (!address) return;
 
@@ -136,7 +133,6 @@ function RiderNavigationModal({
     resolveCoords();
   }, [address?.lat, address?.lng, address?.street, address?.city, address?.pincode]);
 
-  // 2. High-Accuracy Hardware GPS tracking
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
 
@@ -159,14 +155,12 @@ function RiderNavigationModal({
       }
     };
 
-    // Immediate fix request to wake mobile hardware
     navigator.geolocation.getCurrentPosition(
       (pos) => updateLocation(pos.coords.latitude, pos.coords.longitude),
       (err) => console.warn("Initial GPS acquisition failed:", err),
       { enableHighAccuracy: true, timeout: 8000 }
     );
 
-    // Continuous watch
     const watchId = navigator.geolocation.watchPosition(
       (pos) => updateLocation(pos.coords.latitude, pos.coords.longitude),
       (err) => console.warn("Rider watchPosition error:", err.message),
@@ -179,7 +173,6 @@ function RiderNavigationModal({
     };
   }, [order._id]);
 
-  // 3. Initialize Leaflet Map
   useEffect(() => {
     if (!customerCoords || !mapContainerRef.current || leafletMapRef.current) return;
     let isMounted = true;
@@ -204,7 +197,6 @@ function RiderNavigationModal({
         maxZoom: 19,
       }).addTo(map);
 
-      // Destination Pin (Red)
       const destIcon = L.divIcon({
         className: "dest-pin",
         html: `
@@ -224,7 +216,6 @@ function RiderNavigationModal({
       });
       destMarkerRef.current = L.marker([customerCoords!.lat, customerCoords!.lng], { icon: destIcon }).addTo(map);
 
-      // Rider Pin (Green Bike)
       const bikerIcon = L.divIcon({
         className: "rider-nav-pin",
         html: `
@@ -266,7 +257,6 @@ function RiderNavigationModal({
     };
   }, [customerCoords]);
 
-  // 4. Dynamically update rider marker position and recalculate OSRM route
   useEffect(() => {
     if (!leafletMapRef.current || !customerCoords || !riderCoords) return;
 
@@ -338,10 +328,9 @@ function RiderNavigationModal({
   );
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-[32px] max-w-sm sm:max-w-md w-full h-[90vh] shadow-2xl border border-gray-100 flex flex-col overflow-hidden relative font-sans">
-        {/* Modal Header */}
-        <div className="bg-white px-5 pt-4 pb-3 border-b border-gray-100 z-20 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-t-[32px] sm:rounded-[32px] max-w-sm sm:max-w-md w-full h-[92vh] sm:h-[90vh] shadow-2xl border border-gray-100 flex flex-col overflow-hidden relative font-sans">
+        <div className="bg-white px-4 sm:px-5 pt-4 pb-3 border-b border-gray-100 z-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
@@ -387,7 +376,6 @@ function RiderNavigationModal({
           </div>
         </div>
 
-        {/* Map Body */}
         <div className="relative flex-1 overflow-hidden flex flex-col">
           {!customerCoords ? (
             <div className="flex-1 bg-gray-50 flex flex-col items-center justify-center p-6 text-center space-y-3">
@@ -398,15 +386,14 @@ function RiderNavigationModal({
             <div ref={mapContainerRef} className="relative flex-1 w-full h-full" />
           )}
 
-          {/* Floating Customer Info Overlay */}
-          <div className="absolute top-3 inset-x-3 bg-white/95 backdrop-blur-md p-3 rounded-2xl border border-gray-200 shadow-md z-[1000] flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+          <div className="absolute top-3 inset-x-3 bg-white/95 backdrop-blur-md p-3 rounded-2xl border border-gray-200 shadow-md z-[1000] flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
                 <User className="w-4 h-4 text-emerald-600" />
               </div>
-              <div className="leading-tight">
-                <span className="font-extrabold text-gray-900 text-xs block">{customerName}</span>
-                <span className="text-[11px] text-gray-500 font-medium truncate max-w-[200px] block">
+              <div className="leading-tight min-w-0">
+                <span className="font-extrabold text-gray-900 text-xs block truncate">{customerName}</span>
+                <span className="text-[11px] text-gray-500 font-medium truncate block">
                   {address?.street}, {address?.city}
                 </span>
               </div>
@@ -423,9 +410,8 @@ function RiderNavigationModal({
             )}
           </div>
 
-          {/* Bottom Controls Card */}
-          <div className="bg-white p-4 rounded-t-[32px] border-t border-gray-100 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] z-20 space-y-3.5">
-            <div className="flex items-center justify-around px-4">
+          <div className="bg-white p-4 rounded-t-[32px] border-t border-gray-100 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] z-20 space-y-3.5 pb-6 sm:pb-4">
+            <div className="flex items-center justify-around px-2 sm:px-4">
               <div className="text-center">
                 <span className="text-base font-black text-gray-900 block">{routeStats.distanceKm}</span>
                 <span className="text-[11px] font-semibold text-gray-400">Remaining</span>
@@ -516,7 +502,6 @@ export default function DeliveryAppPage() {
     (o) => o.status === "OUT_FOR_DELIVERY" && o.assignedRiderEmail === riderEmail
   );
 
-  // Background broadcast of real-time GPS while delivering
   useEffect(() => {
     if (myActiveOrders.length === 0) {
       setGpsActive(false);
@@ -545,14 +530,12 @@ export default function DeliveryAppPage() {
       }
     };
 
-    // Immediate fix
     navigator.geolocation.getCurrentPosition(
       (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
       (err) => console.warn("Background initial GPS error:", err.message),
       { enableHighAccuracy: true, timeout: 8000 }
     );
 
-    // Watch stream
     const watchId = navigator.geolocation.watchPosition(
       (pos) => pushCoords(pos.coords.latitude, pos.coords.longitude),
       (error) => {
@@ -678,19 +661,19 @@ export default function DeliveryAppPage() {
   );
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-gray-100 pb-16">
+    <div ref={containerRef} className="min-h-screen bg-gray-100 pb-24 sm:pb-16 font-sans">
       <header className="skiper-header bg-white border-b border-gray-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-2 bg-amber-100 text-amber-900 rounded-2xl shadow-xs shrink-0">
               <Bike className="w-5 h-5 text-amber-700" />
             </div>
-            <div>
-              <span className="font-black text-gray-900 text-sm tracking-tight block">
+            <div className="min-w-0">
+              <span className="font-black text-gray-900 text-sm tracking-tight block truncate">
                 FlashKart Rider App
               </span>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block truncate max-w-[130px] sm:max-w-none">
                   Partner: {riderName}
                 </span>
                 {gpsActive && (
@@ -702,7 +685,7 @@ export default function DeliveryAppPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={fetchDeliveryOrders}
               disabled={loading}
@@ -722,15 +705,14 @@ export default function DeliveryAppPage() {
         </div>
       </header>
 
-      <main ref={activeOrdersRef} className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Active Trip */}
+      <main ref={activeOrdersRef} className="max-w-3xl mx-auto px-3.5 sm:px-4 py-5 sm:py-6 space-y-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
-              <Bike className="w-5 h-5 text-emerald-600" />
+            <h2 className="text-sm sm:text-base font-black text-gray-900 flex items-center gap-2">
+              <Bike className="w-4 sm:w-5 h-4 sm:h-5 text-emerald-600" />
               My Active Deliveries ({myActiveOrders.length})
             </h2>
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
               Assigned to you
             </span>
           </div>
@@ -757,27 +739,27 @@ export default function DeliveryAppPage() {
                 return (
                   <div
                     key={order._id}
-                    className="skiper-rider-card bg-white rounded-3xl border-2 border-emerald-500 shadow-md p-5 space-y-4 ring-4 ring-emerald-500/10 transition-all duration-300"
+                    className="skiper-rider-card bg-white rounded-3xl border-2 border-emerald-500 shadow-md p-4 sm:p-5 space-y-4 ring-4 ring-emerald-500/10 transition-all duration-300"
                   >
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                      <div>
-                        <span className="text-base font-black text-gray-900">{order.orderNumber}</span>
-                        <span className="text-xs text-gray-400 ml-2">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                      <div className="min-w-0">
+                        <span className="text-sm sm:text-base font-black text-gray-900">{order.orderNumber}</span>
+                        <span className="text-[11px] sm:text-xs text-gray-400 ml-2 whitespace-nowrap">
                           • {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <span className="text-xs font-extrabold px-3 py-1 rounded-full border bg-amber-100 text-amber-900 border-amber-300 animate-pulse">
+                      <span className="text-[10px] sm:text-xs font-extrabold px-2.5 sm:px-3 py-1 rounded-full border bg-amber-100 text-amber-900 border-amber-300 shrink-0">
                         Trip In Progress
                       </span>
                     </div>
 
-                    <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-2.5 text-xs">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center gap-1.5 font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs">
+                    <div className="bg-emerald-50/60 p-3.5 sm:p-4 rounded-2xl border border-emerald-200/80 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="space-y-2.5 text-xs flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                            <span className="inline-flex items-center gap-1.5 font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs truncate max-w-full">
                               <User className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
-                              <span>{customerDisplayName}</span>
+                              <span className="truncate">{customerDisplayName}</span>
                             </span>
 
                             {customerPhoneNum && (
@@ -793,30 +775,30 @@ export default function DeliveryAppPage() {
 
                           <div className="flex items-start gap-2 pt-0.5">
                             <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-black text-gray-900 uppercase tracking-wider text-[10px] bg-white px-1.5 py-0.5 rounded border border-gray-200 inline-block">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
+                                <span className="font-black text-gray-900 uppercase tracking-wider text-[9px] sm:text-[10px] bg-white px-1.5 py-0.5 rounded border border-gray-200 inline-block shrink-0">
                                   {order.deliveryAddress?.type || "HOME"}
                                 </span>
 
                                 {hasCoordinates ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded">
+                                  <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 sm:px-2 py-0.5 rounded shrink-0">
                                     <Crosshair className="w-3 h-3 text-emerald-600" />
                                     GPS Doorstep Pinned
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                                  <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 px-1.5 sm:px-2 py-0.5 rounded shrink-0">
                                     Text Address
                                   </span>
                                 )}
                               </div>
 
-                              <p className="text-gray-900 font-bold leading-relaxed">
+                              <p className="text-gray-900 font-bold leading-relaxed break-words">
                                 {order.deliveryAddress?.street}, {order.deliveryAddress?.city} - {order.deliveryAddress?.pincode}
                               </p>
 
                               {hasCoordinates && (
-                                <p className="text-[10px] font-mono text-emerald-700 mt-0.5">
+                                <p className="text-[10px] font-mono text-emerald-700 mt-0.5 truncate">
                                   Coords: {order.deliveryAddress.lat.toFixed(5)}, {order.deliveryAddress.lng.toFixed(5)}
                                 </p>
                               )}
@@ -824,11 +806,10 @@ export default function DeliveryAppPage() {
                           </div>
                         </div>
 
-                        {/* In-app Leaflet Navigation Trigger Button */}
                         <button
                           type="button"
                           onClick={() => setNavigatingOrder(order)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shrink-0 shadow-md transition-all active:scale-95 cursor-pointer"
+                          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shrink-0 shadow-md transition-all active:scale-95 cursor-pointer"
                           title="Open Live In-App Navigation"
                         >
                           <Navigation className="w-4 h-4" />
@@ -837,8 +818,8 @@ export default function DeliveryAppPage() {
                       </div>
 
                       <div className="pt-2.5 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <span className="text-gray-600 font-medium">{order.userEmail}</span>
-                        <div className="flex items-center gap-1.5 font-bold text-gray-900">
+                        <span className="text-gray-600 font-medium truncate max-w-[170px] sm:max-w-none">{order.userEmail}</span>
+                        <div className="flex items-center gap-1.5 font-bold text-gray-900 ml-auto">
                           <span className="text-gray-500 font-normal text-[11px]">Collect Cash:</span>
                           <span className="text-emerald-700 text-sm font-black">{formatPrice(order.totalAmount)}</span>
                         </div>
@@ -846,16 +827,16 @@ export default function DeliveryAppPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                      <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-gray-400">
                         Package Contents ({order.items?.length || 0} items)
                       </p>
                       <div className="bg-gray-50 rounded-2xl divide-y divide-gray-100 px-3.5 py-1 text-xs">
                         {order.items?.map((item: any, i: number) => (
-                          <div key={i} className="py-2 flex justify-between items-center">
-                            <span className="font-bold text-gray-800">
+                          <div key={i} className="py-2 flex justify-between items-center gap-2">
+                            <span className="font-bold text-gray-800 truncate">
                               {item.quantity}x {item.name} {item.unit ? `(${item.unit})` : ""}
                             </span>
-                            <span className="text-gray-500">{formatPrice(item.price)} each</span>
+                            <span className="text-gray-500 shrink-0">{formatPrice(item.price)} each</span>
                           </div>
                         ))}
                       </div>
@@ -880,18 +861,17 @@ export default function DeliveryAppPage() {
           )}
         </div>
 
-        {/* Pickup Queue */}
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-500" />
-              Available for Pickup at Dark Store ({availableOrders.length})
+            <h2 className="text-sm sm:text-base font-black text-gray-900 flex items-center gap-2">
+              <Clock className="w-4 sm:w-5 h-4 sm:h-5 text-amber-500" />
+              Available for Pickup ({availableOrders.length})
             </h2>
-            <span className="text-[11px] font-semibold text-gray-500">First-come, first-served</span>
+            <span className="text-[10px] sm:text-[11px] font-semibold text-gray-500">First-come, first-served</span>
           </div>
 
           {availableOrders.length === 0 ? (
-            <div className="bg-white p-8 rounded-3xl border border-gray-200 text-center shadow-xs">
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-200 text-center shadow-xs">
               <PackageCheck className="w-10 h-10 text-gray-300 mx-auto mb-2" />
               <p className="text-xs text-gray-400 font-medium">No new packed orders waiting at the dark store.</p>
             </div>
@@ -913,23 +893,23 @@ export default function DeliveryAppPage() {
                 return (
                   <div
                     key={order._id}
-                    className="skiper-rider-card bg-white rounded-3xl border border-gray-200 p-5 shadow-xs space-y-4 transition-all duration-300"
+                    className="skiper-rider-card bg-white rounded-3xl border border-gray-200 p-4 sm:p-5 shadow-xs space-y-4 transition-all duration-300"
                   >
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                      <div>
-                        <span className="text-base font-black text-gray-900">{order.orderNumber}</span>
-                        <span className="text-xs text-gray-400 ml-2">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                      <div className="min-w-0">
+                        <span className="text-sm sm:text-base font-black text-gray-900">{order.orderNumber}</span>
+                        <span className="text-[11px] sm:text-xs text-gray-400 ml-2 whitespace-nowrap">
                           • {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <span className="text-xs font-bold px-2.5 py-1 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                      <span className="text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border bg-blue-50 text-blue-700 border-blue-200 shrink-0">
                         Packed & Ready
                       </span>
                     </div>
 
-                    <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-100 text-xs space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 font-bold text-gray-900">
-                        <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200">
+                    <div className="bg-gray-50 p-3 sm:p-3.5 rounded-2xl border border-gray-100 text-xs space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 font-bold text-gray-900">
+                        <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200 truncate max-w-full">
                           <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {customerDisplayName}
                         </span>
                         {customerPhoneNum && (
@@ -938,12 +918,12 @@ export default function DeliveryAppPage() {
                           </span>
                         )}
                         {hasCoordinates && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
                             <Crosshair className="w-3 h-3 text-emerald-600" /> GPS Doorstep
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-700 font-medium">
+                      <p className="text-gray-700 font-medium break-words">
                         Destination: <strong>{order.deliveryAddress?.street}, {order.deliveryAddress?.city}</strong>
                       </p>
                       <p className="text-gray-500">
@@ -955,7 +935,7 @@ export default function DeliveryAppPage() {
                     <button
                       onClick={(e) => handleClaimAndStartTrip(order._id, e)}
                       disabled={updatingId === order._id}
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-2xl text-xs transition-all shadow-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-2xl text-xs transition-all shadow-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
                     >
                       {updatingId === order._id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -971,7 +951,6 @@ export default function DeliveryAppPage() {
           )}
         </div>
 
-        {/* Completed Deliveries */}
         {myCompletedOrders.length > 0 && (
           <div className="space-y-3 pt-4 border-t border-gray-200">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -981,16 +960,16 @@ export default function DeliveryAppPage() {
               {myCompletedOrders.map((order) => (
                 <div
                   key={order._id}
-                  className="bg-white p-3.5 rounded-2xl border border-gray-200 flex items-center justify-between text-xs shadow-xs"
+                  className="bg-white p-3.5 rounded-2xl border border-gray-200 flex items-center justify-between text-xs shadow-xs gap-2"
                 >
-                  <div>
-                    <span className="font-bold text-gray-900">{order.orderNumber}</span>
-                    <p className="text-[11px] text-gray-400">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-gray-900 block truncate">{order.orderNumber}</span>
+                    <p className="text-[11px] text-gray-400 truncate">
                       {order.deliveryAddress?.street}, {order.deliveryAddress?.city}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <span className="bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded text-[11px] inline-block mb-0.5">
+                  <div className="text-right shrink-0">
+                    <span className="bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded text-[10px] sm:text-[11px] inline-block mb-0.5">
                       Delivered by You
                     </span>
                     <p className="text-[10px] text-gray-400 font-semibold">{formatPrice(order.totalAmount)}</p>
@@ -1002,7 +981,6 @@ export default function DeliveryAppPage() {
         )}
       </main>
 
-      {/* In-App Leaflet Navigation Modal */}
       {navigatingOrder && (
         <RiderNavigationModal
           order={navigatingOrder}

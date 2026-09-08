@@ -10,12 +10,69 @@ import {
   useSpring,
   useReducedMotion,
 } from "framer-motion";
-import { Lock, Mail, User, Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Lock, Mail, User, Loader2, ArrowLeft } from "lucide-react";
 
 const PASSWORD_CHAR =
   typeof navigator !== "undefined" && navigator.userAgent.match(/firefox|fxios/i)
     ? "\u25CF"
     : "\u2022";
+
+function AnimatedEyeToggle({
+  showPassword,
+  onToggle,
+}: {
+  showPassword?: boolean;
+  onToggle?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle?.();
+      }}
+      className="group relative ml-2 p-1 text-gray-400 hover:text-emerald-600 focus:outline-none z-20 cursor-pointer flex items-center justify-center"
+      aria-label={showPassword ? "Hide password" : "Show password"}
+    >
+      <motion.div
+        initial={false}
+        animate={{
+          rotate: !showPassword ? [0, -12, 6, -3, 0] : [0, 8, -4, 0],
+        }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="relative flex items-center justify-center w-5 h-5"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="w-4 h-4"
+        >
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="rotate-[-45deg] overflow-hidden flex items-center justify-center">
+            <motion.div
+              animate={{ scaleY: !showPassword ? 1 : 0 }}
+              transition={{
+                duration: 0.16,
+                ease: "easeInOut",
+              }}
+              style={{ transformOrigin: "top" }}
+              className="h-[20px] w-[2px] rounded-full bg-current"
+            />
+          </div>
+        </div>
+      </motion.div>
+    </button>
+  );
+}
 
 function SkiperSmoothInput({
   label,
@@ -239,16 +296,10 @@ function SkiperSmoothInput({
         </div>
 
         {showPasswordToggle && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onTogglePassword?.();
-            }}
-            className="ml-2 text-gray-400 hover:text-emerald-600 focus:outline-none z-20 cursor-pointer p-1"
-          >
-            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
+          <AnimatedEyeToggle
+            showPassword={showPassword}
+            onToggle={onTogglePassword}
+          />
         )}
       </div>
     </div>
