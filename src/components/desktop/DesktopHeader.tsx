@@ -21,8 +21,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/useCartStore";
 import { useWishlistStore } from "@/store/useWishlistStore";
 import { useFilter } from "@/context/FilterContext";
-import { SkiperSmoothInput } from "@/components/ui/skiper-input";
 import { SlidingNumber } from "@/components/ui/sliding-number";
+import { TextMorph } from "@/components/ui/text-morph";
 
 const SORT_OPTIONS = [
   { id: "default", label: "Default" },
@@ -53,6 +53,8 @@ export default function DesktopHeader() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const desktopSortRef = useRef<HTMLDivElement>(null);
   const mobileSortRef = useRef<HTMLDivElement>(null);
+  const desktopInputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -218,25 +220,57 @@ export default function DesktopHeader() {
             className="flex-1 max-w-xl hidden md:flex items-center gap-2 relative z-20"
           >
             <div className="relative flex-1">
-              <div onFocus={() => setIsSearchFocused(true)}>
-                <SkiperSmoothInput
-                  placeholder="Search for milk, drinks, snacks, fruits..."
-                  icon={<Search className="w-4 h-4" />}
-                  value={localSearch}
-                  onChange={handleSearchChange}
-                  onKeyDown={handleKeyDown}
+              <div
+                onClick={() => desktopInputRef.current?.focus()}
+                className={`relative flex items-center h-11 px-3.5 bg-gray-50/90 rounded-2xl border transition-all cursor-text ${
+                  isSearchFocused
+                    ? "!border-emerald-500 bg-white ring-2 ring-emerald-500/20"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <Search
+                  className={`w-4 h-4 shrink-0 transition-colors mr-2.5 ${
+                    isSearchFocused ? "text-emerald-600" : "text-gray-500"
+                  }`}
                 />
-              </div>
 
-              {localSearch && (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition cursor-pointer z-30"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+                <div className="relative flex-1 h-full flex items-center overflow-hidden">
+                  <input
+                    ref={desktopInputRef}
+                    type="text"
+                    value={localSearch}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setIsSearchFocused(false)}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      boxShadow: "none",
+                    }}
+                    className="w-full bg-transparent !border-0 !outline-none !ring-0 !shadow-none focus:!border-0 focus:!outline-none focus:!ring-0 focus:!shadow-none text-xs font-medium text-gray-900 z-10 p-0"
+                  />
+
+                  {!localSearch && (
+                    <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                      <TextMorph />
+                    </div>
+                  )}
+                </div>
+
+                {localSearch && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClearSearch();
+                    }}
+                    className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition cursor-pointer z-20 ml-1.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
 
               {/* Recent Searches Panel */}
               <AnimatePresence>
@@ -365,7 +399,6 @@ export default function DesktopHeader() {
               </Link>
             )}
 
-            {/* Wishlist Link */}
             {userRole === "customer" && (
               <Link
                 href="/wishlist"
@@ -463,25 +496,57 @@ export default function DesktopHeader() {
         {/* Dedicated Mobile Search & Filter */}
         <div className="md:hidden pb-3 pt-1 flex items-center gap-2 relative z-30">
           <div className="relative flex-1">
-            <div onFocus={() => setIsSearchFocused(true)}>
-              <SkiperSmoothInput
-                placeholder="Search milk, snacks, drinks..."
-                icon={<Search className="w-4 h-4" />}
-                value={localSearch}
-                onChange={handleSearchChange}
-                onKeyDown={handleKeyDown}
+            <div
+              onClick={() => mobileInputRef.current?.focus()}
+              className={`relative flex items-center h-11 px-3.5 bg-gray-50/90 rounded-2xl border transition-all cursor-text ${
+                isSearchFocused
+                  ? "!border-emerald-500 bg-white ring-2 ring-emerald-500/20"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <Search
+                className={`w-4 h-4 shrink-0 transition-colors mr-2.5 ${
+                  isSearchFocused ? "text-emerald-600" : "text-gray-500"
+                }`}
               />
-            </div>
 
-            {localSearch && (
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 z-30 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+              <div className="relative flex-1 h-full flex items-center overflow-hidden">
+                <input
+                  ref={mobileInputRef}
+                  type="text"
+                  value={localSearch}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    boxShadow: "none",
+                  }}
+                  className="w-full bg-transparent !border-0 !outline-none !ring-0 !shadow-none focus:!border-0 focus:!outline-none focus:!ring-0 focus:!shadow-none text-xs font-medium text-gray-900 z-10 p-0"
+                />
+
+                {!localSearch && (
+                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                    <TextMorph />
+                  </div>
+                )}
+              </div>
+
+              {localSearch && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleClearSearch();
+                  }}
+                  className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition cursor-pointer z-20 ml-1.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
             {/* Mobile Recent Searches */}
             <AnimatePresence>
@@ -537,7 +602,7 @@ export default function DesktopHeader() {
               type="button"
               onClick={() => setIsMobileSortOpen((prev) => !prev)}
               aria-label="Sort options"
-              className={`flex items-center justify-center rounded-2xl w-12 h-12 border transition-all shadow-2xs active:scale-95 cursor-pointer ${
+              className={`flex items-center justify-center rounded-2xl w-11 h-11 border transition-all shadow-2xs active:scale-95 cursor-pointer ${
                 isMobileSortOpen || sortBy !== "default"
                   ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/25"
                   : "bg-white border-gray-200 text-gray-700 hover:border-emerald-500 hover:bg-emerald-50/40"
